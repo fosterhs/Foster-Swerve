@@ -10,11 +10,18 @@ import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 class Drivetrain {
   public static final double maxVel = 4.0; // User defined maximum speed of the robot. Unit: meters per second
   public static final double maxAngularVel = Math.PI; // User defined maximum rotational speed of the robot. Unit: raidans per second
+  
+  // Odometry variables
+  public double xVel = 0;
+  public double yVel = 0;
+  public double angVel = 0;
+  public double xPos = 0;
+  public double yPos = 0;
+  public double angPos = 0;
   
   // Positions of the swerve modules relative to the center of the roboot. +x points towards the robot's front. +y points to the robot's left.
   private final Translation2d frontLeftPos = new Translation2d(0.225, 0.225);
@@ -39,24 +46,24 @@ class Drivetrain {
   }
   
   // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
-  public void drive(double xVel, double yVel, double angVel) {
-    SwerveModuleState[] moduleStates = kin.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVel, yVel, angVel, new Rotation2d(-gyro.getYaw()*Math.PI/180)));
+  public void drive(double xVelCommanded, double yVelCommanded, double angVelCommanded) {
+    SwerveModuleState[] moduleStates = kin.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVelCommanded, yVelCommanded, angVelCommanded, new Rotation2d(-gyro.getYaw()*Math.PI/180)));
     SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, maxVel);
     frontLeftModule.setState(moduleStates[0]);
     frontRightModule.setState(moduleStates[1]);
     backRightModule.setState(moduleStates[2]);
     backLeftModule.setState(moduleStates[3]);
-    SmartDashboard.putNumber("xVel", xVel);
-    SmartDashboard.putNumber("yVel", yVel);
-    SmartDashboard.putNumber("angVel", angVel);
+    xVel = xVelCommanded;
+    yVel = yVelCommanded;
+    angVel = angVelCommanded;
   }
   
   // Should be called every TimedRobot loop. Keeps track of the x-position, y-position, and angular position of the robot.
   public void updateOdometry() {
     odo.update(new Rotation2d(-gyro.getYaw()*Math.PI/180), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
-    Pose2d pose = odo.getPoseMeters();
-    SmartDashboard.putNumber("xPos", pose.getX());
-    SmartDashboard.putNumber("yPos", pose.getY());
-    SmartDashboard.putNumber("angPos", pose.getRotation().getDegrees());
+    Pose2d robotPose = odo.getPoseMeters();
+    xPos = robotPose.getX();
+    yPos = robotPose.getY();
+    angPos = robotPose.getRotation().getDegrees();
   }
 }

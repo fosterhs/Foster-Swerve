@@ -45,22 +45,26 @@ class SwerveModule {
     turnMotor.setNeutralMode(NeutralMode.Brake);
     
     // Motion Magic parameters for the turning motor
+    double kI_turn = 0.001;
     turnMotor.config_kP(0, 0.4);
-    turnMotor.config_kI(0, 0.001);
+    turnMotor.config_kI(0, kI_turn);
     turnMotor.config_kD(0, 3);
     turnMotor.configMotionAcceleration(100000);
     turnMotor.configMotionCruiseVelocity(200000);
     turnMotor.configAllowableClosedloopError(0, 50);
+    turnMotor.configMaxIntegralAccumulator(0, 0.8*1023/kI_turn);
 
     driveMotor.configAllSettings(config);
     driveMotor.setSelectedSensorPosition(0);
     driveMotor.setNeutralMode(NeutralMode.Brake);
     
     // Velocity control parameters for the drive motor
+    double kI_drive = 0.0003;
     driveMotor.config_kP(0, 0.04);
-    driveMotor.config_kI(0, 0.0003);
+    driveMotor.config_kI(0, kI_drive);
     driveMotor.config_kD(0, 1);
     driveMotor.config_kF(0, 0.0447);
+    driveMotor.configMaxIntegralAccumulator(0, 0.8*1023/kI_drive);
 
     if (invertDrive) {
       driveMotor.setInverted(true);

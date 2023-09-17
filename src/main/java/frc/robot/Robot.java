@@ -4,6 +4,7 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends TimedRobot {
   private final Joystick c = new Joystick(0);
@@ -38,6 +39,13 @@ public class Robot extends TimedRobot {
 
     swerve.drive(xSpeed, ySpeed, rotSpeed); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
     swerve.updateOdometry(); // Should be called every TimedRobot loop. Keeps track of the x-position, y-position, and angular position of the robot.
+
+    SmartDashboard.putNumber("xVel", swerve.xVel);
+    SmartDashboard.putNumber("yVel", swerve.yVel);
+    SmartDashboard.putNumber("angVel", swerve.angVel);
+    SmartDashboard.putNumber("xPos", swerve.xPos);
+    SmartDashboard.putNumber("yPos", swerve.yPos);
+    SmartDashboard.putNumber("angPos", swerve.angPos);
   }
 
   @Override
