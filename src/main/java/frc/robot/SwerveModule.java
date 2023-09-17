@@ -20,7 +20,7 @@ class SwerveModule {
   private final WPI_TalonFX driveMotor;
   private final WPI_TalonFX turnMotor;
   private final AnalogEncoder wheelEncoder;
-  
+
   // Keeps track wraparounds when the wheel angle crosses 180 degrees 
   private double previousAngle = 0;
   private double wraparoundOffset = 0;
@@ -69,6 +69,7 @@ class SwerveModule {
     if (invertDrive) {
       driveMotor.setInverted(true);
     }
+    turnMotor.setInverted(true);
   }
   
   // Sets the swerve module to the given state.
@@ -79,13 +80,14 @@ class SwerveModule {
     
     // Handles wraparounds that occur at 180/-180 degrees
     if (desiredAngle-previousAngle > 300) {
-      wraparoundOffset = wraparoundOffset + 360;
-    } else if (desiredAngle-previousAngle < -300) {
       wraparoundOffset = wraparoundOffset - 360;
+    } else if (desiredAngle-previousAngle < -300) {
+      wraparoundOffset = wraparoundOffset + 360;
     }
     previousAngle = desiredAngle;
+    double commandedAngle = wraparoundOffset+desiredAngle;
 
-    turnMotor.set(ControlMode.MotionMagic, (wraparoundOffset-desiredAngle)*falconEncoderRes*turnGearRatio/360);
+    turnMotor.set(ControlMode.MotionMagic, commandedAngle*falconEncoderRes*turnGearRatio/360);
     driveMotor.set(ControlMode.Velocity, desiredVel*falconEncoderRes*driveGearRatio/(10*wheelCirc));
   }
 
@@ -109,6 +111,6 @@ class SwerveModule {
   
   // Returns the angle of the wheel in degrees. 0 degrees corresponds to facing to the front (+x). 90 degrees in facing left (+y). 
   private double getAngle() {
-    return -turnMotor.getSelectedSensorPosition(0)*360/(falconEncoderRes*turnGearRatio);
+    return turnMotor.getSelectedSensorPosition(0)*360/(falconEncoderRes*turnGearRatio);
   }
 }
