@@ -31,7 +31,7 @@ public class Robot extends TimedRobot {
   
   Timer timer = new Timer();
   Trajectory trajectory;
-  HolonomicDriveController controller;
+  HolonomicDriveController autoController;
 
   @Override
   public void robotInit() {
@@ -42,7 +42,7 @@ public class Robot extends TimedRobot {
     TrajectoryConfig config = new TrajectoryConfig(0.5, 0.2); // Setting the maximum velocity and acceleration of the robot during the trajectory.
     config.setKinematics(swerve.kin);
     trajectory = TrajectoryGenerator.generateTrajectory(startPose, waypoints, endPose, config);
-    controller = new HolonomicDriveController(new PIDController(1, 0, 0), new PIDController(1, 0, 0), new ProfiledPIDController(1, 0, 0, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel/2, Drivetrain.maxAngularVel/4))); // Defining the PID controllers and their constants for trajectory tracking.
+    autoController = new HolonomicDriveController(new PIDController(1, 0, 0), new PIDController(1, 0, 0), new ProfiledPIDController(1, 0, 0, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel/2, Drivetrain.maxAngularVel/4))); // Defining the PID controllers and their constants for trajectory tracking.
   }
 
   @Override
@@ -55,11 +55,12 @@ public class Robot extends TimedRobot {
 
   @Override
   public void autonomousPeriodic() {
-    if (timer.get() > trajectory.getTotalTimeSeconds()) {
+    double settleTime = 1; // Time the robot is allowed to settle after the end of the trajectory.
+    if (timer.get() > trajectory.getTotalTimeSeconds() + settleTime) {
       swerve.drive(0,0,0); // Robot stops after trajectory is finished.
     } else {
       Trajectory.State goal = trajectory.sample(timer.get()); // Finds the desired state of the robot at the given time based on the trajectory.
-      ChassisSpeeds adjustedSpeeds = controller.calculate(new Pose2d(swerve.xPos, swerve.yPos, Rotation2d.fromDegrees(swerve.angPos)), goal, Rotation2d.fromDegrees(timer.get()*10)); // Calculates the required robot velocities to accurately track the trajectory.
+      ChassisSpeeds adjustedSpeeds = autoController.calculate(new Pose2d(swerve.xPos, swerve.yPos, Rotation2d.fromDegrees(swerve.angPos)), goal, Rotation2d.fromDegrees(timer.get()*10)); // Calculates the required robot velocities to accurately track the trajectory.
       swerve.drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond); // Sets the robot to the correct velocities. 
     }
     swerve.updateOdometry();
