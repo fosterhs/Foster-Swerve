@@ -57,11 +57,11 @@ public class Robot extends TimedRobot {
   public void autonomousPeriodic() {
     double settleTime = 1; // Time the robot is allowed to settle after the end of the trajectory.
     if (timer.get() > trajectory.getTotalTimeSeconds() + settleTime) {
-      swerve.drive(0,0,0); // Robot stops after trajectory is finished.
+      swerve.drive(0,0,0, true); // Robot stops after trajectory is finished.
     } else {
       Trajectory.State goal = trajectory.sample(timer.get()); // Finds the desired state of the robot at the given time based on the trajectory.
       ChassisSpeeds adjustedSpeeds = autoController.calculate(new Pose2d(swerve.xPos, swerve.yPos, Rotation2d.fromDegrees(swerve.angPos)), goal, Rotation2d.fromDegrees(timer.get()*10)); // Calculates the required robot velocities to accurately track the trajectory.
-      swerve.drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond); // Sets the robot to the correct velocities. 
+      swerve.drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, true); // Sets the robot to the correct velocities. 
     }
     swerve.updateOdometry();
     updateDash();
@@ -77,7 +77,7 @@ public class Robot extends TimedRobot {
     double ySpeed = yAccLimiter.calculate(MathUtil.applyDeadband(-c.getX(),0.1))*Drivetrain.maxVel;
     double rotSpeed = rotAccLimiter.calculate(MathUtil.applyDeadband(-c.getZ(),0.1))*Drivetrain.maxAngularVel;
 
-    swerve.drive(xSpeed, ySpeed, rotSpeed); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
+    swerve.drive(xSpeed, ySpeed, rotSpeed, true); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
     swerve.updateOdometry(); // Should be called every TimedRobot loop. Keeps track of the x-position, y-position, and angular position of the robot.
     updateDash();
   }

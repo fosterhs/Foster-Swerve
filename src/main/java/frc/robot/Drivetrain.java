@@ -46,8 +46,13 @@ class Drivetrain {
   }
   
   // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
-  public void drive(double xVelCommanded, double yVelCommanded, double angVelCommanded) {
-    SwerveModuleState[] moduleStates = kin.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVelCommanded, yVelCommanded, angVelCommanded, new Rotation2d(-gyro.getYaw()*Math.PI/180)));
+  public void drive(double xVelCommanded, double yVelCommanded, double angVelCommanded, boolean fieldRelative) {
+    SwerveModuleState[] moduleStates;
+    if (fieldRelative) {
+      moduleStates = kin.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVelCommanded, yVelCommanded, angVelCommanded, new Rotation2d(-gyro.getYaw()*Math.PI/180)));
+    } else {
+      moduleStates = kin.toSwerveModuleStates(new ChassisSpeeds(xVelCommanded, yVelCommanded, angVelCommanded));
+    }
     SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, maxVel);
     frontLeftModule.setState(moduleStates[0]);
     frontRightModule.setState(moduleStates[1]);
