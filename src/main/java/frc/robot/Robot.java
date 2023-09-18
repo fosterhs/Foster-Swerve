@@ -1,9 +1,23 @@
 package frc.robot;
 
+import java.util.ArrayList;
+
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.HolonomicDriveController;
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.math.trajectory.Trajectory;
+import edu.wpi.first.math.trajectory.TrajectoryConfig;
+import edu.wpi.first.math.trajectory.TrajectoryGenerator;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends TimedRobot {
@@ -15,17 +29,42 @@ public class Robot extends TimedRobot {
   private final SlewRateLimiter yAccLimiter = new SlewRateLimiter(3);
   private final SlewRateLimiter rotAccLimiter = new SlewRateLimiter(3);
   
+  Timer timer = new Timer();
+  Trajectory trajectory;
+  HolonomicDriveController controller;
+
   @Override
-  public void robotInit() {}
+  public void robotInit() {
+    Pose2d startPose = new Pose2d(0, 0, Rotation2d.fromDegrees(0)); // State of the robot at the begining of the trajectory.
+    Pose2d endPose = new Pose2d(1,1, Rotation2d.fromDegrees(0)); // state of the robot at the end of the trajectory.
+    ArrayList<Translation2d> waypoints = new ArrayList<Translation2d>(); // Any waypoints between the start and the end of the trajectory can be added here.
+    waypoints.add(new Translation2d(1, 0));
+    TrajectoryConfig config = new TrajectoryConfig(0.5, 0.2); // Setting the maximum velocity and acceleration of the robot during the trajectory.
+    config.setKinematics(swerve.kin);
+    trajectory = TrajectoryGenerator.generateTrajectory(startPose, waypoints, endPose, config);
+    controller = new HolonomicDriveController(new PIDController(1, 0, 0), new PIDController(1, 0, 0), new ProfiledPIDController(1, 0, 0, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel/2, Drivetrain.maxAngularVel/4))); // Defining the PID controllers and their constants for trajectory tracking.
+  }
 
   @Override
   public void robotPeriodic() {}
 
   @Override
-  public void autonomousInit() {}
+  public void autonomousInit() {
+    timer.start();
+  }
 
   @Override
-  public void autonomousPeriodic() {}
+  public void autonomousPeriodic() {
+    if (timer.get() > trajectory.getTotalTimeSeconds()) {
+      swerve.drive(0,0,0); // Robot stops after trajectory is finished.
+    } else {
+      Trajectory.State goal = trajectory.sample(timer.get()); // Finds the desired state of the robot at the given time based on the trajectory.
+      ChassisSpeeds adjustedSpeeds = controller.calculate(new Pose2d(swerve.xPos, swerve.yPos, Rotation2d.fromDegrees(swerve.angPos)), goal, Rotation2d.fromDegrees(timer.get()*10)); // Calculates the required robot velocities to accurately track the trajectory.
+      swerve.drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond); // Sets the robot to the correct velocities. 
+    }
+    swerve.updateOdometry();
+    updateDash();
+  }
 
   @Override
   public void teleopInit() {}
@@ -39,13 +78,7 @@ public class Robot extends TimedRobot {
 
     swerve.drive(xSpeed, ySpeed, rotSpeed); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
     swerve.updateOdometry(); // Should be called every TimedRobot loop. Keeps track of the x-position, y-position, and angular position of the robot.
-
-    SmartDashboard.putNumber("xVel", swerve.xVel);
-    SmartDashboard.putNumber("yVel", swerve.yVel);
-    SmartDashboard.putNumber("angVel", swerve.angVel);
-    SmartDashboard.putNumber("xPos", swerve.xPos);
-    SmartDashboard.putNumber("yPos", swerve.yPos);
-    SmartDashboard.putNumber("angPos", swerve.angPos);
+    updateDash();
   }
 
   @Override
@@ -65,4 +98,13 @@ public class Robot extends TimedRobot {
 
   @Override
   public void simulationPeriodic() {}
+
+  public void updateDash() {
+    SmartDashboard.putNumber("xVel", swerve.xVel);
+    SmartDashboard.putNumber("yVel", swerve.yVel);
+    SmartDashboard.putNumber("angVel", swerve.angVel);
+    SmartDashboard.putNumber("xPos", swerve.xPos);
+    SmartDashboard.putNumber("yPos", swerve.yPos);
+    SmartDashboard.putNumber("angPos", swerve.angPos);
+  }
 }
