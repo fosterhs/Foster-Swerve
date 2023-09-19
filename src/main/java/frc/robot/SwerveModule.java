@@ -100,17 +100,17 @@ class SwerveModule {
   }
 
   // Returns the velocity of the wheel. Unit: meters per second
-  private double getVel() {
+  public double getVel() {
     return driveMotor.getSelectedSensorVelocity(0)*10*wheelCirc/(falconEncoderRes*driveGearRatio);
   }
 
   // Returns total distance the wheel has rotated. Unit: meters
-  private double getPos() {
+  public double getPos() {
     return driveMotor.getSelectedSensorPosition(0)*wheelCirc/(falconEncoderRes*driveGearRatio);
   }
   
   // Returns the angle of the wheel in degrees. 0 degrees corresponds to facing to the front (+x). 90 degrees in facing left (+y). 
-  private double getAngle() {
+  public double getAngle() {
     return turnMotor.getSelectedSensorPosition(0)*360/(falconEncoderRes*turnGearRatio);
   }
 }

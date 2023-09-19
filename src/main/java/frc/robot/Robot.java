@@ -55,14 +55,9 @@ public class Robot extends TimedRobot {
 
   @Override
   public void autonomousPeriodic() {
-    double settleTime = 1; // Time the robot is allowed to settle after the end of the trajectory.
-    if (timer.get() > trajectory.getTotalTimeSeconds() + settleTime) {
-      swerve.drive(0,0,0, true); // Robot stops after trajectory is finished.
-    } else {
-      Trajectory.State goal = trajectory.sample(timer.get()); // Finds the desired state of the robot at the given time based on the trajectory.
-      ChassisSpeeds adjustedSpeeds = autoController.calculate(new Pose2d(swerve.xPos, swerve.yPos, Rotation2d.fromDegrees(swerve.angPos)), goal, Rotation2d.fromDegrees(timer.get()*10)); // Calculates the required robot velocities to accurately track the trajectory.
-      swerve.drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, true); // Sets the robot to the correct velocities. 
-    }
+    Trajectory.State goal = trajectory.sample(timer.get()); // Finds the desired state of the robot at the given time based on the trajectory.
+    ChassisSpeeds adjustedSpeeds = autoController.calculate(new Pose2d(swerve.xPos, swerve.yPos, Rotation2d.fromDegrees(swerve.angPos)), goal, Rotation2d.fromDegrees(timer.get()*10)); // Calculates the required robot velocities to accurately track the trajectory.
+    swerve.drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, true); // Sets the robot to the correct velocities. 
     swerve.updateOdometry();
     updateDash();
   }
@@ -107,5 +102,17 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("xPos", swerve.xPos);
     SmartDashboard.putNumber("yPos", swerve.yPos);
     SmartDashboard.putNumber("angPos", swerve.angPos);
+    SmartDashboard.putNumber("FL angle", swerve.frontLeftModule.getAngle());
+    SmartDashboard.putNumber("FL pos", swerve.frontLeftModule.getPos());
+    SmartDashboard.putNumber("FL vel", swerve.frontLeftModule.getVel());
+    SmartDashboard.putNumber("FR angle", swerve.frontRightModule.getAngle());
+    SmartDashboard.putNumber("FR pos", swerve.frontRightModule.getPos());
+    SmartDashboard.putNumber("FR vel", swerve.frontRightModule.getVel());
+    SmartDashboard.putNumber("BL angle", swerve.backLeftModule.getAngle());
+    SmartDashboard.putNumber("BL pos", swerve.backLeftModule.getPos());
+    SmartDashboard.putNumber("BL vel", swerve.backLeftModule.getVel());
+    SmartDashboard.putNumber("BR angle", swerve.backRightModule.getAngle());
+    SmartDashboard.putNumber("BR pos", swerve.backRightModule.getPos());
+    SmartDashboard.putNumber("BR vel", swerve.backRightModule.getVel());
   }
 }
