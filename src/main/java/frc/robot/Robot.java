@@ -105,14 +105,18 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("FL angle", swerve.frontLeftModule.getAngle());
     SmartDashboard.putNumber("FL pos", swerve.frontLeftModule.getPos());
     SmartDashboard.putNumber("FL vel", swerve.frontLeftModule.getVel());
+    SmartDashboard.putNumber("FL desAngle", swerve.frontLeftModule.desiredAngle);
     SmartDashboard.putNumber("FR angle", swerve.frontRightModule.getAngle());
     SmartDashboard.putNumber("FR pos", swerve.frontRightModule.getPos());
     SmartDashboard.putNumber("FR vel", swerve.frontRightModule.getVel());
+    SmartDashboard.putNumber("FR desAngle", swerve.frontRightModule.desiredAngle);
     SmartDashboard.putNumber("BL angle", swerve.backLeftModule.getAngle());
     SmartDashboard.putNumber("BL pos", swerve.backLeftModule.getPos());
     SmartDashboard.putNumber("BL vel", swerve.backLeftModule.getVel());
+    SmartDashboard.putNumber("BL desAngle", swerve.backLeftModule.desiredAngle);
     SmartDashboard.putNumber("BR angle", swerve.backRightModule.getAngle());
     SmartDashboard.putNumber("BR pos", swerve.backRightModule.getPos());
     SmartDashboard.putNumber("BR vel", swerve.backRightModule.getVel());
+    SmartDashboard.putNumber("BR desAngle", swerve.backRightModule.desiredAngle);
   }
 }

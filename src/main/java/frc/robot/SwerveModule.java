@@ -22,6 +22,7 @@ class SwerveModule {
   private final AnalogEncoder wheelEncoder;
 
   // Keeps track wraparounds when the wheel angle crosses 180 degrees 
+  public double desiredAngle = 0;
   private double previousAngle = 0;
   private double wraparoundOffset = 0;
 
@@ -76,7 +77,7 @@ class SwerveModule {
   public void setState(SwerveModuleState desiredState) {
     SwerveModuleState optimizedState = SwerveModuleState.optimize(desiredState, Rotation2d.fromDegrees(getAngle()));
     double desiredVel = optimizedState.speedMetersPerSecond;
-    double desiredAngle = optimizedState.angle.getDegrees();
+    desiredAngle = optimizedState.angle.getDegrees();
     
     // Handles wraparounds that occur at 180/-180 degrees
     if (desiredAngle-previousAngle > 300) {
