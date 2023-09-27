@@ -25,7 +25,7 @@ public class Robot extends TimedRobot {
   // Limits the acceleration of controller inputs.
   private final SlewRateLimiter xAccLimiter = new SlewRateLimiter(3);
   private final SlewRateLimiter yAccLimiter = new SlewRateLimiter(3);
-  private final SlewRateLimiter rotAccLimiter = new SlewRateLimiter(3);
+  private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(3);
   
   // Trajectory following objects
   Timer timer = new Timer();
@@ -61,7 +61,7 @@ public class Robot extends TimedRobot {
     // Applies a deadband to controller inputs. Also limits the acceleration of controller inputs.
     double xSpeed = xAccLimiter.calculate(MathUtil.applyDeadband(-stick.getY(),0.1))*Drivetrain.maxVel;
     double ySpeed = yAccLimiter.calculate(MathUtil.applyDeadband(-stick.getX(),0.1))*Drivetrain.maxVel;
-    double rotSpeed = rotAccLimiter.calculate(MathUtil.applyDeadband(-stick.getZ(),0.1))*Drivetrain.maxAngularVel;
+    double rotSpeed = angAccLimiter.calculate(MathUtil.applyDeadband(-stick.getZ(),0.1))*Drivetrain.maxAngularVel;
 
     swerve.drive(xSpeed, ySpeed, rotSpeed, true); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
     swerve.updateOdometry(); // Should be called every TimedRobot loop. Keeps track of the x-position, y-position, and angular position of the robot.

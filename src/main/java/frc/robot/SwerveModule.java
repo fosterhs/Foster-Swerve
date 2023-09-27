@@ -10,9 +10,9 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.AnalogEncoder;
 
 class SwerveModule {
-  private static final double wheelCirc = 2*0.0254*2*Math.PI; // Circumference of the wheel. Unit: meters
+  private static final double wheelCirc = 4*0.0254*Math.PI; // Circumference of the wheel. Unit: meters
   private static final double falconEncoderRes = 2048;
-  private static final double turnGearRatio = 150/7.1;
+  private static final double turnGearRatio = 150/7;
   private static final double driveGearRatio = 57/7;
   private static final double currentLimit = 40;
   private static final double wheelEncoderRes = 4096;

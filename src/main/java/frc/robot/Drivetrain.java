@@ -49,7 +49,7 @@ class Drivetrain {
   public void drive(double xVelCommanded, double yVelCommanded, double angVelCommanded, boolean fieldRelative) {
     SwerveModuleState[] moduleStates;
     if (fieldRelative) {
-      moduleStates = kin.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVelCommanded, yVelCommanded, angVelCommanded, new Rotation2d(-gyro.getYaw()*Math.PI/180)));
+      moduleStates = kin.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVelCommanded, yVelCommanded, angVelCommanded, Rotation2d.fromDegrees(-gyro.getYaw())));
     } else {
       moduleStates = kin.toSwerveModuleStates(new ChassisSpeeds(xVelCommanded, yVelCommanded, angVelCommanded));
     }
