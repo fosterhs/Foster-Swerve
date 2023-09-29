@@ -96,18 +96,18 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("FL angle", swerve.frontLeftModule.getAngle());
     SmartDashboard.putNumber("FL pos", swerve.frontLeftModule.getPos());
     SmartDashboard.putNumber("FL vel", swerve.frontLeftModule.getVel());
-    SmartDashboard.putNumber("FL desAngle", swerve.frontLeftModule.goalAngle);
+    SmartDashboard.putNumber("FL desAngle", swerve.frontLeftModule.goalAng);
     SmartDashboard.putNumber("FR angle", swerve.frontRightModule.getAngle());
     SmartDashboard.putNumber("FR pos", swerve.frontRightModule.getPos());
     SmartDashboard.putNumber("FR vel", swerve.frontRightModule.getVel());
-    SmartDashboard.putNumber("FR desAngle", swerve.frontRightModule.goalAngle);
+    SmartDashboard.putNumber("FR desAngle", swerve.frontRightModule.goalAng);
     SmartDashboard.putNumber("BL angle", swerve.backLeftModule.getAngle());
     SmartDashboard.putNumber("BL pos", swerve.backLeftModule.getPos());
     SmartDashboard.putNumber("BL vel", swerve.backLeftModule.getVel());
-    SmartDashboard.putNumber("BL desAngle", swerve.backLeftModule.goalAngle);
+    SmartDashboard.putNumber("BL desAngle", swerve.backLeftModule.goalAng);
     SmartDashboard.putNumber("BR angle", swerve.backRightModule.getAngle());
     SmartDashboard.putNumber("BR pos", swerve.backRightModule.getPos());
     SmartDashboard.putNumber("BR vel", swerve.backRightModule.getVel());
-    SmartDashboard.putNumber("BR desAngle", swerve.backRightModule.goalAngle);
+    SmartDashboard.putNumber("BR desAngle", swerve.backRightModule.goalAng);
   }
 }

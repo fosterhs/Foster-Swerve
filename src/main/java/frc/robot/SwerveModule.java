@@ -22,8 +22,8 @@ class SwerveModule {
   private final AnalogEncoder wheelEncoder;
 
   // Keeps track wraparounds when the wheel angle crosses 180 degrees 
-  public double goalAngle = 0;
-  private double previousAngle = 0;
+  public double goalAng = 0;
+  private double prevGoalAng = 0;
   private double wraparoundOffset = 0;
 
   public SwerveModule(int turnID, int driveID, int encoderID, boolean invertDrive) {
@@ -77,18 +77,17 @@ class SwerveModule {
   public void setState(SwerveModuleState desiredState) {
     SwerveModuleState optimizedState = SwerveModuleState.optimize(desiredState, Rotation2d.fromDegrees(getAngle()));
     double goalVel = optimizedState.speedMetersPerSecond;
-    goalAngle = optimizedState.angle.getDegrees();
+    goalAng = optimizedState.angle.getDegrees();
     
     // Handles wraparounds that occur at 180/-180 degrees
-    if (goalAngle-previousAngle > 300) {
+    if (goalAng-prevGoalAng > 240) {  // -180 -> 180 wraparound 
       wraparoundOffset = wraparoundOffset - 360;
-    } else if (goalAngle-previousAngle < -300) {
+    } else if (goalAng-prevGoalAng < -240) {  // 180 -> -180 wraparound 
       wraparoundOffset = wraparoundOffset + 360;
     }
-    previousAngle = goalAngle;
-    double commandedAngle = wraparoundOffset+goalAngle;
+    prevGoalAng = goalAng;
 
-    turnMotor.set(ControlMode.MotionMagic, commandedAngle*falconEncoderRes*turnGearRatio/360);
+    turnMotor.set(ControlMode.MotionMagic, (wraparoundOffset+goalAng)*falconEncoderRes*turnGearRatio/360);
     driveMotor.set(ControlMode.Velocity, goalVel*falconEncoderRes*driveGearRatio/(10*wheelCirc));
   }
 
