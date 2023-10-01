@@ -1,6 +1,13 @@
 package frc.robot;
 
 import com.kauailabs.navx.frc.AHRS;
+import com.pathplanner.lib.PathConstraints;
+import com.pathplanner.lib.PathPlanner;
+import com.pathplanner.lib.PathPlannerTrajectory;
+import com.pathplanner.lib.PathPlannerTrajectory.PathPlannerState;
+import edu.wpi.first.math.controller.HolonomicDriveController;
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -9,10 +16,11 @@ import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.Timer;
 
 class Drivetrain {
-  public static final double maxVel = 4.0; // User defined maximum speed of the robot. Unit: meters per second
+  public static final double maxVel = 4; // User defined maximum speed of the robot. Unit: meters per second
   public static final double maxAngularVel = Math.PI; // User defined maximum rotational speed of the robot. Unit: raidans per second
   
   // Odometry variables
@@ -35,9 +43,19 @@ class Drivetrain {
   public final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
 
   private final AHRS gyro = new AHRS();
-
+  
+  // Path Following
   public final SwerveDriveKinematics kin = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
-  private final SwerveDriveOdometry odo = new SwerveDriveOdometry(kin, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
+  private SwerveDriveOdometry odo = new SwerveDriveOdometry(kin, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
+  private HolonomicDriveController autoCont;
+  private PathPlannerTrajectory path;
+  private Timer timer = new Timer();
+  private double xTol = 0.03;
+  private double yTol = 0.03;
+  private double angTol = 3.0;
+  private double maxPathVel = 0.8;
+  private double maxPathAcc = 0.4;
+  private boolean pathReversal = false;
 
   public Drivetrain() {
     gyro.calibrate();
@@ -61,14 +79,61 @@ class Drivetrain {
     xVel = xVelCommanded;
     yVel = yVelCommanded;
     angVel = angVelCommanded;
+    updateOdometry();
   }
   
-  // Should be called every TimedRobot loop. Keeps track of the x-position, y-position, and angular position of the robot.
+  // Keeps track of the x-position, y-position, and angular position of the robot.
   public void updateOdometry() {
     odo.update(new Rotation2d(-gyro.getYaw()*Math.PI/180), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
     Pose2d robotPose = odo.getPoseMeters();
     xPos = robotPose.getX();
     yPos = robotPose.getY();
     angPos = robotPose.getRotation().getDegrees();
+  }
+
+  public void loadPath(String pathName) {
+    autoCont = new HolonomicDriveController(new PIDController(1, 0, 0), new PIDController(1, 0, 0), new ProfiledPIDController(1, 0, 0, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel))); // Defining the PID controllers and their constants for trajectory tracking.
+    path = PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal); // Uploading the PathPlanner trajectory to the program. The maximum acceleration and velocity can be set to suitable values for auto.
+    PathPlannerState startingState = path.getInitialState();
+    odo = new SwerveDriveOdometry(kin, Rotation2d.fromDegrees(angPos), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
+    timer.reset(); 
+  }
+
+  public void followPath() {
+    PathPlannerState currentGoal = (PathPlannerState) path.sample(timer.get());
+    Rotation2d currentAngleGoal = currentGoal.holonomicRotation;
+    ChassisSpeeds adjustedSpeeds = autoCont.calculate(new Pose2d(xPos, yPos, Rotation2d.fromDegrees(angPos)), currentGoal, currentAngleGoal); // Calculates the required robot velocities to accurately track the trajectory.
+    drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, true); // Sets the robot to the correct velocities. 
+  }
+
+  public boolean atEndpoint() {
+    PathPlannerState endState = path.getEndState();
+    return Math.abs(odo.getPoseMeters().getRotation().getDegrees() - endState.poseMeters.getRotation().getDegrees()) < angTol 
+    && Math.abs(odo.getPoseMeters().getX() - endState.poseMeters.getX()) < xTol 
+    && Math.abs(odo.getPoseMeters().getY() - endState.poseMeters.getY()) < yTol;
+  }
+
+  public void setPathXTol(double desiredXTol) {
+    xTol = desiredXTol;
+  }
+
+  public void setPathYTol(double desiredYTol) {
+    yTol = desiredYTol;
+  }
+
+  public void setPathAngTol(double desiredAngTol) {
+    angTol = desiredAngTol;
+  }
+
+  public void setMaxPathVel(double desiredMaxVel) {
+    maxPathVel = desiredMaxVel;
+  }
+
+  public void setPathReversal(boolean desiredReversal) {
+    pathReversal = desiredReversal;
+  }
+
+  public void setMaxPathAcc(double desiredMaxAcc) {
+    maxPathAcc = desiredMaxAcc;
   }
 }

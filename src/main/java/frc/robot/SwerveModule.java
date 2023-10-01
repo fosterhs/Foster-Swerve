@@ -52,7 +52,7 @@ class SwerveModule {
     turnMotor.config_kD(0, 3);
     turnMotor.configMotionAcceleration(100000);
     turnMotor.configMotionCruiseVelocity(200000);
-    turnMotor.configAllowableClosedloopError(0, 50);
+    turnMotor.configAllowableClosedloopError(0, 20);
     turnMotor.configMaxIntegralAccumulator(0, 0.8*1023/kI_turn);
 
     driveMotor.configAllSettings(config);
