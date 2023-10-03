@@ -22,20 +22,20 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 class Drivetrain {
   public static final double maxVel = 4; // User defined maximum speed of the robot. Unit: meters per second
-  public static final double maxAngularVel = Math.PI; // User defined maximum rotational speed of the robot. Unit: raidans per second
+  public static final double maxAngularVel = 2*Math.PI; // User defined maximum rotational speed of the robot. Unit: raidans per second
  
   // Positions of the swerve modules relative to the center of the roboot. +x points towards the robot's front. +y points to the robot's left.
   private static final Translation2d frontLeftPos = new Translation2d(0.225, 0.225);
   private static final Translation2d frontRightPos = new Translation2d(0.225, -0.225); 
   private static final Translation2d backRightPos = new Translation2d(-0.225, -0.225);
   private static final Translation2d backLeftPos = new Translation2d(-0.225, 0.225);
-  private final SwerveDriveKinematics kin = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
+  private final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
 
   public final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false); 
   public final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true);
   public final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
   public final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
-  private final SwerveDriveOdometry odo = new SwerveDriveOdometry(kin, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
+  private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
   
   private final AHRS gyro = new AHRS();
   
@@ -54,11 +54,11 @@ class Drivetrain {
   private final double kP_move = 1;
   private final double kI_move = 0;
   private final double kD_move = 0;
-  private final double kI_moveMax = 4;
+  private final double I_moveMax = 4;
   private final double kP_turn = 1;
   private final double kI_turn = 0;
   private final double kD_turn = 0;
-  private final double kI_turnMax = 4;
+  private final double I_turnMax = 4;
 
   public Drivetrain() {
     gyro.calibrate();
@@ -70,9 +70,9 @@ class Drivetrain {
   public final void drive(double xVel, double yVel, double angVel, boolean fieldRelative) {
     SwerveModuleState[] moduleStates;
     if (fieldRelative) {
-      moduleStates = kin.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVel, yVel, angVel, Rotation2d.fromDegrees(getYaw())));
+      moduleStates = kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVel, yVel, angVel, Rotation2d.fromDegrees(getYaw())));
     } else {
-      moduleStates = kin.toSwerveModuleStates(new ChassisSpeeds(xVel, yVel, angVel));
+      moduleStates = kinematics.toSwerveModuleStates(new ChassisSpeeds(xVel, yVel, angVel));
     }
     SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, maxVel);
     frontLeftModule.setState(moduleStates[0]);
@@ -87,7 +87,7 @@ class Drivetrain {
 
   // Keeps track of the x-position, y-position, and angular position of the robot.
   public final void updateOdometry() {
-    odo.update(Rotation2d.fromDegrees(getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
+    odometry.update(Rotation2d.fromDegrees(getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
   }
   
   public final double getYaw() {
@@ -95,25 +95,25 @@ class Drivetrain {
   }
   
   public final double getRobotX() {
-    return odo.getPoseMeters().getX();
+    return odometry.getPoseMeters().getX();
   }
 
   public final double getRobotY() {
-    return odo.getPoseMeters().getY();
+    return odometry.getPoseMeters().getY();
   }
   
   // Loads the path. Should be called immediately before the user would like the robot to begin tracking the path. Assumes the robot is starting at the field position idicated by the start point of the path.
   public final void loadPath(String pathName) {
     PIDController xController = new PIDController(kP_move, kI_move, kD_move);
-    xController.setIntegratorRange(-kI_moveMax, kI_moveMax);
+    xController.setIntegratorRange(-I_moveMax, I_moveMax);
     PIDController yController = new PIDController(kP_move, kI_move, kD_move);
-    yController.setIntegratorRange(-kI_moveMax, kI_moveMax);
+    yController.setIntegratorRange(-I_moveMax, I_moveMax);
     ProfiledPIDController turnController = new ProfiledPIDController(kP_turn, kI_turn, kD_turn, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel));
-    turnController.setIntegratorRange(-kI_turnMax, kI_turnMax);
+    turnController.setIntegratorRange(-I_turnMax, I_turnMax);
     swerveController = new HolonomicDriveController(xController, yController, turnController); // Defining the PID controllers and their constants for trajectory tracking.
     path = PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal); // Uploading the PathPlanner trajectory to the program. The maximum acceleration and velocity can be set to suitable values for auto.
     PathPlannerState startingState = path.getInitialState();
-    odo.resetPosition(Rotation2d.fromDegrees(getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
+    odometry.resetPosition(Rotation2d.fromDegrees(getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
     timer.restart();
   }
   
