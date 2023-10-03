@@ -32,24 +32,25 @@ class Drivetrain {
   public double angPos = 0;
   
   // Positions of the swerve modules relative to the center of the roboot. +x points towards the robot's front. +y points to the robot's left.
-  private final Translation2d frontLeftPos = new Translation2d(0.225, 0.225);
-  private final Translation2d frontRightPos = new Translation2d(0.225, -0.225); 
-  private final Translation2d backRightPos = new Translation2d(-0.225, -0.225);
-  private final Translation2d backLeftPos = new Translation2d(-0.225, 0.225);
+  private Translation2d frontLeftPos = new Translation2d(0.225, 0.225);
+  private Translation2d frontRightPos = new Translation2d(0.225, -0.225); 
+  private Translation2d backRightPos = new Translation2d(-0.225, -0.225);
+  private Translation2d backLeftPos = new Translation2d(-0.225, 0.225);
 
-  public final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false); 
-  public final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true);
-  public final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
-  public final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
+  public SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false); 
+  public SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true);
+  public SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
+  public SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
 
-  private final AHRS gyro = new AHRS();
+  private AHRS gyro = new AHRS();
+  
+  private SwerveDriveKinematics kin = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
+  private SwerveDriveOdometry odo = new SwerveDriveOdometry(kin, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
   
   // Path Following
-  public final SwerveDriveKinematics kin = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
-  private SwerveDriveOdometry odo = new SwerveDriveOdometry(kin, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
   private HolonomicDriveController autoCont;
   private PathPlannerTrajectory path;
-  private Timer timer = new Timer();
+  private Timer timer;
   private double xTol = 0.03;
   private double yTol = 0.03;
   private double angTol = 3.0;
@@ -84,7 +85,7 @@ class Drivetrain {
   
   // Keeps track of the x-position, y-position, and angular position of the robot.
   public void updateOdometry() {
-    odo.update(new Rotation2d(-gyro.getYaw()*Math.PI/180), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
+    odo.update(Rotation2d.fromDegrees(-gyro.getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
     Pose2d robotPose = odo.getPoseMeters();
     xPos = robotPose.getX();
     yPos = robotPose.getY();
@@ -95,8 +96,9 @@ class Drivetrain {
     autoCont = new HolonomicDriveController(new PIDController(1, 0, 0), new PIDController(1, 0, 0), new ProfiledPIDController(1, 0, 0, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel))); // Defining the PID controllers and their constants for trajectory tracking.
     path = PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal); // Uploading the PathPlanner trajectory to the program. The maximum acceleration and velocity can be set to suitable values for auto.
     PathPlannerState startingState = path.getInitialState();
-    odo = new SwerveDriveOdometry(kin, Rotation2d.fromDegrees(angPos), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
-    timer.reset(); 
+    odo = new SwerveDriveOdometry(kin, Rotation2d.fromDegrees(-gyro.getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
+    timer = new Timer();
+    timer.start();
   }
 
   public void followPath() {

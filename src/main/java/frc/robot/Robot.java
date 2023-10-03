@@ -14,12 +14,6 @@ public class Robot extends TimedRobot {
   private final SlewRateLimiter xAccLimiter = new SlewRateLimiter(3);
   private final SlewRateLimiter yAccLimiter = new SlewRateLimiter(3);
   private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(3);
-  
-  public void robotInit() {}
-
-  public void robotPeriodic() {
-    updateDash();
-  }
 
   public void autonomousInit() {
     swerve.loadPath("Test Path");
@@ -38,6 +32,14 @@ public class Robot extends TimedRobot {
     double rotSpeed = angAccLimiter.calculate(MathUtil.applyDeadband(-stick.getZ(),0.1))*Drivetrain.maxAngularVel;
 
     swerve.drive(xSpeed, ySpeed, rotSpeed, true); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
+  }
+
+  public void robotInit() {
+    
+  }
+  
+  public void robotPeriodic() {
+    updateDash();
   }
 
   public void updateDash() {
