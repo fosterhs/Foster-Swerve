@@ -11,9 +11,9 @@ public class Robot extends TimedRobot {
   private final Drivetrain swerve = new Drivetrain(); // Initializes the drivetrain (swerve modules, gyros, encoders)
 
   // Limits the acceleration of controller inputs.
-  private final SlewRateLimiter xAccLimiter = new SlewRateLimiter(3);
-  private final SlewRateLimiter yAccLimiter = new SlewRateLimiter(3);
-  private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(3);
+  private final SlewRateLimiter xAccLimiter = new SlewRateLimiter(3.0);
+  private final SlewRateLimiter yAccLimiter = new SlewRateLimiter(3.0);
+  private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(3.0);
 
   public void autonomousInit() {
     swerve.loadPath("Test Path");
@@ -43,12 +43,9 @@ public class Robot extends TimedRobot {
   }
 
   public void updateDash() {
-    SmartDashboard.putNumber("xVel", swerve.xVel);
-    SmartDashboard.putNumber("yVel", swerve.yVel);
-    SmartDashboard.putNumber("angVel", swerve.angVel);
-    SmartDashboard.putNumber("xPos", swerve.xPos);
-    SmartDashboard.putNumber("yPos", swerve.yPos);
-    SmartDashboard.putNumber("angPos", swerve.angPos);
+    SmartDashboard.putNumber("xPos", swerve.getRobotX());
+    SmartDashboard.putNumber("yPos", swerve.getRobotY());
+    SmartDashboard.putNumber("angPos", swerve.getYaw());
     SmartDashboard.putNumber("FL angle", swerve.frontLeftModule.getAngle());
     SmartDashboard.putNumber("FL pos", swerve.frontLeftModule.getPos());
     SmartDashboard.putNumber("FL vel", swerve.frontLeftModule.getVel());

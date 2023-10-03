@@ -18,45 +18,47 @@ import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 class Drivetrain {
   public static final double maxVel = 4; // User defined maximum speed of the robot. Unit: meters per second
   public static final double maxAngularVel = Math.PI; // User defined maximum rotational speed of the robot. Unit: raidans per second
-  
-  // Odometry variables
-  public double xVel = 0;
-  public double yVel = 0;
-  public double angVel = 0;
-  public double xPos = 0;
-  public double yPos = 0;
-  public double angPos = 0;
-  
+ 
   // Positions of the swerve modules relative to the center of the roboot. +x points towards the robot's front. +y points to the robot's left.
-  private Translation2d frontLeftPos = new Translation2d(0.225, 0.225);
-  private Translation2d frontRightPos = new Translation2d(0.225, -0.225); 
-  private Translation2d backRightPos = new Translation2d(-0.225, -0.225);
-  private Translation2d backLeftPos = new Translation2d(-0.225, 0.225);
+  private static final Translation2d frontLeftPos = new Translation2d(0.225, 0.225);
+  private static final Translation2d frontRightPos = new Translation2d(0.225, -0.225); 
+  private static final Translation2d backRightPos = new Translation2d(-0.225, -0.225);
+  private static final Translation2d backLeftPos = new Translation2d(-0.225, 0.225);
+  private final SwerveDriveKinematics kin = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
 
-  public SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false); 
-  public SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true);
-  public SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
-  public SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
-
-  private AHRS gyro = new AHRS();
+  public final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false); 
+  public final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true);
+  public final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
+  public final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
+  private final SwerveDriveOdometry odo = new SwerveDriveOdometry(kin, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
   
-  private SwerveDriveKinematics kin = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
-  private SwerveDriveOdometry odo = new SwerveDriveOdometry(kin, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
+  private final AHRS gyro = new AHRS();
   
   // Path Following
-  private HolonomicDriveController autoCont;
   private PathPlannerTrajectory path;
-  private Timer timer;
+  private final Timer timer = new Timer();
   private double xTol = 0.03;
   private double yTol = 0.03;
   private double angTol = 3.0;
   private double maxPathVel = 0.8;
   private double maxPathAcc = 0.4;
   private boolean pathReversal = false;
+ 
+  // Autonomous Swerve Controller Parameters
+  private HolonomicDriveController swerveController;
+  private final double kP_move = 1;
+  private final double kI_move = 0;
+  private final double kD_move = 0;
+  private final double kI_moveMax = 4;
+  private final double kP_turn = 1;
+  private final double kI_turn = 0;
+  private final double kD_turn = 0;
+  private final double kI_turnMax = 4;
 
   public Drivetrain() {
     gyro.calibrate();
@@ -65,77 +67,94 @@ class Drivetrain {
   }
   
   // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
-  public void drive(double xVelCommanded, double yVelCommanded, double angVelCommanded, boolean fieldRelative) {
+  public final void drive(double xVel, double yVel, double angVel, boolean fieldRelative) {
     SwerveModuleState[] moduleStates;
     if (fieldRelative) {
-      moduleStates = kin.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVelCommanded, yVelCommanded, angVelCommanded, Rotation2d.fromDegrees(-gyro.getYaw())));
+      moduleStates = kin.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVel, yVel, angVel, Rotation2d.fromDegrees(getYaw())));
     } else {
-      moduleStates = kin.toSwerveModuleStates(new ChassisSpeeds(xVelCommanded, yVelCommanded, angVelCommanded));
+      moduleStates = kin.toSwerveModuleStates(new ChassisSpeeds(xVel, yVel, angVel));
     }
     SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, maxVel);
     frontLeftModule.setState(moduleStates[0]);
     frontRightModule.setState(moduleStates[1]);
     backRightModule.setState(moduleStates[2]);
     backLeftModule.setState(moduleStates[3]);
-    xVel = xVelCommanded;
-    yVel = yVelCommanded;
-    angVel = angVelCommanded;
     updateOdometry();
+    SmartDashboard.putNumber("xVel", xVel);
+    SmartDashboard.putNumber("yVel", yVel);
+    SmartDashboard.putNumber("angVel", angVel);
+  }
+
+  // Keeps track of the x-position, y-position, and angular position of the robot.
+  public final void updateOdometry() {
+    odo.update(Rotation2d.fromDegrees(getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
   }
   
-  // Keeps track of the x-position, y-position, and angular position of the robot.
-  public void updateOdometry() {
-    odo.update(Rotation2d.fromDegrees(-gyro.getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
-    Pose2d robotPose = odo.getPoseMeters();
-    xPos = robotPose.getX();
-    yPos = robotPose.getY();
-    angPos = robotPose.getRotation().getDegrees();
+  public final double getYaw() {
+    return -gyro.getYaw();
+  }
+  
+  public final double getRobotX() {
+    return odo.getPoseMeters().getX();
   }
 
-  public void loadPath(String pathName) {
-    autoCont = new HolonomicDriveController(new PIDController(1, 0, 0), new PIDController(1, 0, 0), new ProfiledPIDController(1, 0, 0, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel))); // Defining the PID controllers and their constants for trajectory tracking.
+  public final double getRobotY() {
+    return odo.getPoseMeters().getY();
+  }
+  
+  // Loads the path. Should be called immediately before the user would like the robot to begin tracking the path. Assumes the robot is starting at the field position idicated by the start point of the path.
+  public final void loadPath(String pathName) {
+    PIDController xController = new PIDController(kP_move, kI_move, kD_move);
+    xController.setIntegratorRange(-kI_moveMax, kI_moveMax);
+    PIDController yController = new PIDController(kP_move, kI_move, kD_move);
+    yController.setIntegratorRange(-kI_moveMax, kI_moveMax);
+    ProfiledPIDController turnController = new ProfiledPIDController(kP_turn, kI_turn, kD_turn, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel));
+    turnController.setIntegratorRange(-kI_turnMax, kI_turnMax);
+    swerveController = new HolonomicDriveController(xController, yController, turnController); // Defining the PID controllers and their constants for trajectory tracking.
     path = PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal); // Uploading the PathPlanner trajectory to the program. The maximum acceleration and velocity can be set to suitable values for auto.
     PathPlannerState startingState = path.getInitialState();
-    odo = new SwerveDriveOdometry(kin, Rotation2d.fromDegrees(-gyro.getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
-    timer = new Timer();
-    timer.start();
+    odo.resetPosition(Rotation2d.fromDegrees(getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
+    timer.restart();
   }
-
-  public void followPath() {
+  
+  // Tracks the path. Should be called each period until the endpoint is reached.
+  public final void followPath() {
     PathPlannerState currentGoal = (PathPlannerState) path.sample(timer.get());
-    Rotation2d currentAngleGoal = currentGoal.holonomicRotation;
-    ChassisSpeeds adjustedSpeeds = autoCont.calculate(new Pose2d(xPos, yPos, Rotation2d.fromDegrees(angPos)), currentGoal, currentAngleGoal); // Calculates the required robot velocities to accurately track the trajectory.
+    Rotation2d currentAngGoal = currentGoal.holonomicRotation;
+    ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getRobotX(), getRobotY(), Rotation2d.fromDegrees(getYaw())), currentGoal, currentAngGoal); // Calculates the required robot velocities to accurately track the trajectory.
     drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, true); // Sets the robot to the correct velocities. 
   }
-
-  public boolean atEndpoint() {
+  
+  // Tells whether the robot has reached the endpoint of the path, within the specified tolerance.
+  public final boolean atEndpoint() {
     PathPlannerState endState = path.getEndState();
-    return Math.abs(odo.getPoseMeters().getRotation().getDegrees() - endState.poseMeters.getRotation().getDegrees()) < angTol 
-    && Math.abs(odo.getPoseMeters().getX() - endState.poseMeters.getX()) < xTol 
-    && Math.abs(odo.getPoseMeters().getY() - endState.poseMeters.getY()) < yTol;
+    return Math.abs(getYaw() - endState.poseMeters.getRotation().getDegrees()) < angTol 
+    && Math.abs(getRobotX() - endState.poseMeters.getX()) < xTol 
+    && Math.abs(getRobotY() - endState.poseMeters.getY()) < yTol;
   }
-
-  public void setPathXTol(double desiredXTol) {
+  
+  // Path following parameters should be adjusted using these functions prior to calling loadPath().
+  public final void setPathXTol(double desiredXTol) {
     xTol = desiredXTol;
   }
 
-  public void setPathYTol(double desiredYTol) {
+  public final void setPathYTol(double desiredYTol) {
     yTol = desiredYTol;
   }
 
-  public void setPathAngTol(double desiredAngTol) {
+  public final void setPathAngTol(double desiredAngTol) {
     angTol = desiredAngTol;
   }
 
-  public void setMaxPathVel(double desiredMaxVel) {
+  public final void setMaxPathVel(double desiredMaxVel) {
     maxPathVel = desiredMaxVel;
   }
 
-  public void setPathReversal(boolean desiredReversal) {
+  public final void setPathReversal(boolean desiredReversal) {
     pathReversal = desiredReversal;
   }
 
-  public void setMaxPathAcc(double desiredMaxAcc) {
+  public final void setMaxPathAcc(double desiredMaxAcc) {
     maxPathAcc = desiredMaxAcc;
   }
 }
