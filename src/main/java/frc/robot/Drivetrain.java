@@ -20,7 +20,7 @@ import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
-class Drivetrain {
+final class Drivetrain {
   public static final double maxVel = 4; // User defined maximum speed of the robot. Unit: meters per second
   public static final double maxAngularVel = 2*Math.PI; // User defined maximum rotational speed of the robot. Unit: raidans per second
  
@@ -42,9 +42,9 @@ class Drivetrain {
   // Path Following
   private PathPlannerTrajectory path;
   private final Timer timer = new Timer();
-  private double xTol = 0.03;
-  private double yTol = 0.03;
-  private double angTol = 3.0;
+  private final double pathXTol = 0.03;
+  private final double pathYTol = 0.03;
+  private final double pathAngTol = 3.0;
   private double maxPathVel = 0.8;
   private double maxPathAcc = 0.4;
   private boolean pathReversal = false;
@@ -62,7 +62,9 @@ class Drivetrain {
 
   public Drivetrain() {
     gyro.calibrate();
-    Timer.delay(2);
+    while (gyro.isCalibrating()) {
+      Timer.delay(0.02);
+    }
     gyro.zeroYaw();
   }
   
@@ -110,6 +112,7 @@ class Drivetrain {
     yController.setIntegratorRange(-I_moveMax, I_moveMax);
     ProfiledPIDController turnController = new ProfiledPIDController(kP_turn, kI_turn, kD_turn, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel));
     turnController.setIntegratorRange(-I_turnMax, I_turnMax);
+    turnController.enableContinuousInput(-Math.PI, Math.PI);
     swerveController = new HolonomicDriveController(xController, yController, turnController); // Defining the PID controllers and their constants for trajectory tracking.
     path = PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal); // Uploading the PathPlanner trajectory to the program. The maximum acceleration and velocity can be set to suitable values for auto.
     PathPlannerState startingState = path.getInitialState();
@@ -128,24 +131,12 @@ class Drivetrain {
   // Tells whether the robot has reached the endpoint of the path, within the specified tolerance.
   public final boolean atEndpoint() {
     PathPlannerState endState = path.getEndState();
-    return Math.abs(getYaw() - endState.poseMeters.getRotation().getDegrees()) < angTol 
-    && Math.abs(getRobotX() - endState.poseMeters.getX()) < xTol 
-    && Math.abs(getRobotY() - endState.poseMeters.getY()) < yTol;
+    return Math.abs(getYaw() - endState.poseMeters.getRotation().getDegrees()) < pathAngTol 
+    && Math.abs(getRobotX() - endState.poseMeters.getX()) < pathXTol 
+    && Math.abs(getRobotY() - endState.poseMeters.getY()) < pathYTol;
   }
   
   // Path following parameters should be adjusted using these functions prior to calling loadPath().
-  public final void setPathXTol(double desiredXTol) {
-    xTol = desiredXTol;
-  }
-
-  public final void setPathYTol(double desiredYTol) {
-    yTol = desiredYTol;
-  }
-
-  public final void setPathAngTol(double desiredAngTol) {
-    angTol = desiredAngTol;
-  }
-
   public final void setMaxPathVel(double desiredMaxVel) {
     maxPathVel = desiredMaxVel;
   }
