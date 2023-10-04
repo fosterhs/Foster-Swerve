@@ -20,7 +20,7 @@ import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
-final class Drivetrain {
+class Drivetrain {
   public static final double maxVel = 4; // User defined maximum speed of the robot. Unit: meters per second
   public static final double maxAngularVel = 2*Math.PI; // User defined maximum rotational speed of the robot. Unit: raidans per second
  
@@ -31,10 +31,10 @@ final class Drivetrain {
   private static final Translation2d backLeftPos = new Translation2d(-0.225, 0.225);
   private final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
 
-  public final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false); 
-  public final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true);
-  public final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
-  public final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
+  private final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false); 
+  private final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true);
+  private final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
+  private final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
   private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
   
   private final AHRS gyro = new AHRS();
@@ -69,10 +69,10 @@ final class Drivetrain {
   }
   
   // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
-  public final void drive(double xVel, double yVel, double angVel, boolean fieldRelative) {
+  public void drive(double xVel, double yVel, double angVel, boolean fieldRelative) {
     SwerveModuleState[] moduleStates;
     if (fieldRelative) {
-      moduleStates = kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVel, yVel, angVel, Rotation2d.fromDegrees(getYaw())));
+      moduleStates = kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVel, yVel, angVel, Rotation2d.fromDegrees(getAngPos())));
     } else {
       moduleStates = kinematics.toSwerveModuleStates(new ChassisSpeeds(xVel, yVel, angVel));
     }
@@ -82,30 +82,31 @@ final class Drivetrain {
     backRightModule.setState(moduleStates[2]);
     backLeftModule.setState(moduleStates[3]);
     updateOdometry();
+    updateDash();
     SmartDashboard.putNumber("xVel", xVel);
     SmartDashboard.putNumber("yVel", yVel);
     SmartDashboard.putNumber("angVel", angVel);
   }
 
   // Keeps track of the x-position, y-position, and angular position of the robot.
-  public final void updateOdometry() {
-    odometry.update(Rotation2d.fromDegrees(getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
+  private void updateOdometry() {
+    odometry.update(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
   }
   
-  public final double getYaw() {
+  public double getAngPos() {
     return -gyro.getYaw();
   }
   
-  public final double getRobotX() {
+  public double getXPos() {
     return odometry.getPoseMeters().getX();
   }
 
-  public final double getRobotY() {
+  public double getYPos() {
     return odometry.getPoseMeters().getY();
   }
   
   // Loads the path. Should be called immediately before the user would like the robot to begin tracking the path. Assumes the robot is starting at the field position idicated by the start point of the path.
-  public final void loadPath(String pathName) {
+  public void loadPath(String pathName, boolean resetOdometry) {
     PIDController xController = new PIDController(kP_move, kI_move, kD_move);
     xController.setIntegratorRange(-I_moveMax, I_moveMax);
     PIDController yController = new PIDController(kP_move, kI_move, kD_move);
@@ -115,37 +116,64 @@ final class Drivetrain {
     turnController.enableContinuousInput(-Math.PI, Math.PI);
     swerveController = new HolonomicDriveController(xController, yController, turnController); // Defining the PID controllers and their constants for trajectory tracking.
     path = PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal); // Uploading the PathPlanner trajectory to the program. The maximum acceleration and velocity can be set to suitable values for auto.
-    PathPlannerState startingState = path.getInitialState();
-    odometry.resetPosition(Rotation2d.fromDegrees(getYaw()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
     timer.restart();
+    if (resetOdometry) {
+      PathPlannerState startingState = path.getInitialState();
+      odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
+    }
   }
   
   // Tracks the path. Should be called each period until the endpoint is reached.
-  public final void followPath() {
+  public void followPath() {
     PathPlannerState currentGoal = (PathPlannerState) path.sample(timer.get());
     Rotation2d currentAngGoal = currentGoal.holonomicRotation;
-    ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getRobotX(), getRobotY(), Rotation2d.fromDegrees(getYaw())), currentGoal, currentAngGoal); // Calculates the required robot velocities to accurately track the trajectory.
+    ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentAngGoal); // Calculates the required robot velocities to accurately track the trajectory.
     drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, true); // Sets the robot to the correct velocities. 
+    SmartDashboard.putNumber("pathXPos", currentGoal.poseMeters.getX());
+    SmartDashboard.putNumber("pathYPos", currentGoal.poseMeters.getY());
+    SmartDashboard.putNumber("pathAngPos", currentGoal.poseMeters.getRotation().getDegrees());
   }
   
   // Tells whether the robot has reached the endpoint of the path, within the specified tolerance.
-  public final boolean atEndpoint() {
+  public boolean atEndpoint() {
     PathPlannerState endState = path.getEndState();
-    return Math.abs(getYaw() - endState.poseMeters.getRotation().getDegrees()) < pathAngTol 
-    && Math.abs(getRobotX() - endState.poseMeters.getX()) < pathXTol 
-    && Math.abs(getRobotY() - endState.poseMeters.getY()) < pathYTol;
+    return Math.abs(getAngPos() - endState.poseMeters.getRotation().getDegrees()) < pathAngTol 
+    && Math.abs(getXPos() - endState.poseMeters.getX()) < pathXTol 
+    && Math.abs(getYPos() - endState.poseMeters.getY()) < pathYTol;
   }
   
   // Path following parameters should be adjusted using these functions prior to calling loadPath().
-  public final void setMaxPathVel(double desiredMaxVel) {
+  public void setMaxPathVel(double desiredMaxVel) {
     maxPathVel = desiredMaxVel;
   }
 
-  public final void setPathReversal(boolean desiredReversal) {
+  public void setPathReversal(boolean desiredReversal) {
     pathReversal = desiredReversal;
   }
 
-  public final void setMaxPathAcc(double desiredMaxAcc) {
+  public void setMaxPathAcc(double desiredMaxAcc) {
     maxPathAcc = desiredMaxAcc;
+  }
+
+  private void updateDash() {
+    SmartDashboard.putNumber("xPos", getXPos());
+    SmartDashboard.putNumber("yPos", getYPos());
+    SmartDashboard.putNumber("angPos", getAngPos());
+    SmartDashboard.putNumber("FL angle", frontLeftModule.getAngle());
+    SmartDashboard.putNumber("FL pos", frontLeftModule.getPos());
+    SmartDashboard.putNumber("FL vel", frontLeftModule.getVel());
+    SmartDashboard.putNumber("FL goalAngle", frontLeftModule.getGoalAngle());
+    SmartDashboard.putNumber("FR angle", frontRightModule.getAngle());
+    SmartDashboard.putNumber("FR pos", frontRightModule.getPos());
+    SmartDashboard.putNumber("FR vel", frontRightModule.getVel());
+    SmartDashboard.putNumber("FR goalAngle", frontRightModule.getGoalAngle());
+    SmartDashboard.putNumber("BL angle", backLeftModule.getAngle());
+    SmartDashboard.putNumber("BL pos", backLeftModule.getPos());
+    SmartDashboard.putNumber("BL vel", backLeftModule.getVel());
+    SmartDashboard.putNumber("BL goalAngle", backLeftModule.getGoalAngle());
+    SmartDashboard.putNumber("BR angle", backRightModule.getAngle());
+    SmartDashboard.putNumber("BR pos", backRightModule.getPos());
+    SmartDashboard.putNumber("BR vel", backRightModule.getVel());
+    SmartDashboard.putNumber("BR goalAngle", backRightModule.getGoalAngle());
   }
 }

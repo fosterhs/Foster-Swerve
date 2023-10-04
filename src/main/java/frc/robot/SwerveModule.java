@@ -9,7 +9,7 @@ import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.AnalogEncoder;
 
-final class SwerveModule {
+class SwerveModule {
   private static final double wheelCirc = 4.0*0.0254*Math.PI; // Circumference of the wheel. Unit: meters
   private static final double falconEncoderRes = 2048.0;
   private static final double turnGearRatio = 150.0/7.0;
@@ -22,7 +22,7 @@ final class SwerveModule {
   private final AnalogEncoder wheelEncoder;
 
   // Keeps track wraparounds when the wheel angle crosses 180 degrees 
-  public double goalAng = 0.0;
+  private double goalAng = 0.0;
   private double prevGoalAng = 0.0;
   private double wraparoundOffset = 0.0;
 
@@ -74,7 +74,7 @@ final class SwerveModule {
   }
   
   // Sets the swerve module to the given state.
-  public final void setState(SwerveModuleState desiredState) {
+  public void setState(SwerveModuleState desiredState) {
     SwerveModuleState optimizedState = SwerveModuleState.optimize(desiredState, Rotation2d.fromDegrees(getAngle()));
     double goalVel = optimizedState.speedMetersPerSecond;
     goalAng = optimizedState.angle.getDegrees();
@@ -91,26 +91,30 @@ final class SwerveModule {
     driveMotor.set(ControlMode.Velocity, goalVel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
   }
 
-  public final SwerveModuleState getState() {
+  public SwerveModuleState getState() {
     return new SwerveModuleState(getVel(), Rotation2d.fromDegrees(getAngle()));
   }
 
-  public final SwerveModulePosition getPosition() {
+  public SwerveModulePosition getPosition() {
     return new SwerveModulePosition(getPos(), Rotation2d.fromDegrees(getAngle()));
   }
 
   // Returns the velocity of the wheel. Unit: meters per second
-  public final double getVel() {
+  public double getVel() {
     return driveMotor.getSelectedSensorVelocity(0)*10.0*wheelCirc/(falconEncoderRes*driveGearRatio);
   }
 
   // Returns total distance the wheel has rotated. Unit: meters
-  public final double getPos() {
+  public double getPos() {
     return driveMotor.getSelectedSensorPosition(0)*wheelCirc/(falconEncoderRes*driveGearRatio);
   }
   
   // Returns the angle of the wheel in degrees. 0 degrees corresponds to facing to the front (+x). 90 degrees in facing left (+y). 
-  public final double getAngle() {
+  public double getAngle() {
     return turnMotor.getSelectedSensorPosition(0)*360.0/(falconEncoderRes*turnGearRatio);
+  }
+
+  public double getGoalAngle() {
+    return goalAng;
   }
 }
