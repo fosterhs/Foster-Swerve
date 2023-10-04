@@ -81,16 +81,11 @@ class Drivetrain {
     frontRightModule.setState(moduleStates[1]);
     backRightModule.setState(moduleStates[2]);
     backLeftModule.setState(moduleStates[3]);
-    updateOdometry();
+    odometry.update(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
     updateDash();
     SmartDashboard.putNumber("xVel", xVel);
     SmartDashboard.putNumber("yVel", yVel);
     SmartDashboard.putNumber("angVel", angVel);
-  }
-
-  // Keeps track of the x-position, y-position, and angular position of the robot.
-  private void updateOdometry() {
-    odometry.update(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
   }
   
   public double getAngPos() {
