@@ -164,18 +164,14 @@ class Drivetrain {
     SmartDashboard.putNumber("FL angle", frontLeftModule.getAngle());
     SmartDashboard.putNumber("FL pos", frontLeftModule.getPos());
     SmartDashboard.putNumber("FL vel", frontLeftModule.getVel());
-    SmartDashboard.putNumber("FL goalAngle", frontLeftModule.getGoalAngle() + frontLeftModule.wraparoundOffset);
     SmartDashboard.putNumber("FR angle", frontRightModule.getAngle());
     SmartDashboard.putNumber("FR pos", frontRightModule.getPos());
     SmartDashboard.putNumber("FR vel", frontRightModule.getVel());
-    SmartDashboard.putNumber("FR goalAngle", frontRightModule.getGoalAngle()+ frontRightModule.wraparoundOffset);
     SmartDashboard.putNumber("BL angle", backLeftModule.getAngle());
     SmartDashboard.putNumber("BL pos", backLeftModule.getPos());
     SmartDashboard.putNumber("BL vel", backLeftModule.getVel());
-    SmartDashboard.putNumber("BL goalAngle", backLeftModule.getGoalAngle() + backLeftModule.wraparoundOffset);
     SmartDashboard.putNumber("BR angle", backRightModule.getAngle());
     SmartDashboard.putNumber("BR pos", backRightModule.getPos());
     SmartDashboard.putNumber("BR vel", backRightModule.getVel());
-    SmartDashboard.putNumber("BR goalAngle", backRightModule.getGoalAngle() + backRightModule.wraparoundOffset);
   }
 }

@@ -7,7 +7,6 @@ import com.ctre.phoenix.motorcontrol.can.WPI_TalonFX;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.wpilibj.AnalogEncoder;
 
 class SwerveModule {
   private static final double wheelCirc = 4.0*0.0254*Math.PI; // Circumference of the wheel. Unit: meters
@@ -15,21 +14,13 @@ class SwerveModule {
   private static final double turnGearRatio = 150.0/7.0;
   private static final double driveGearRatio = 57.0/7.0;
   private static final double currentLimit = 40.0;
-  private static final double wheelEncoderRes = 4096.0;
 
   private final WPI_TalonFX driveMotor;
   private final WPI_TalonFX turnMotor;
-  private final AnalogEncoder wheelEncoder;
-
-  // Keeps track wraparounds when the wheel angle crosses 180 degrees 
-  private double goalAng = 0.0;
-  private double prevGoalAng = 0.0;
-  public double wraparoundOffset = 0.0;
 
   public SwerveModule(int turnID, int driveID, int encoderID, boolean invertDrive) {
     driveMotor = new WPI_TalonFX(driveID);
     turnMotor = new WPI_TalonFX(turnID);
-    wheelEncoder = new AnalogEncoder(encoderID);
 
     driveMotor.configFactoryDefault();
     turnMotor.configFactoryDefault();
@@ -75,95 +66,77 @@ class SwerveModule {
   
   // Sets the swerve module to the given state.
   public void setState(SwerveModuleState desiredState) {
-    double goalVel = desiredState.speedMetersPerSecond;
-    double goalAng = desiredState.angle.getDegrees();
-    double currentAng = getAngle();
-    double currentAngMod = getAngle() - Math.round(getAngle()/360)*360;
-    double reverseGoalAng;
-    if (goalAng > 0) {
-      reverseGoalAng = goalAng - 180.0;
-    } else {
-      reverseGoalAng = goalAng + 180.0;
-    }
-    double[] distances = {calcDistances(currentAngMod, goalAng)[0], calcDistances(currentAngMod, goalAng)[1], calcDistances(currentAngMod, reverseGoalAng)[0], calcDistances(currentAngMod, reverseGoalAng)[1]};
-    int minIndex = -1;
-    double minDistance = 360;
-    for (int i = 0; i < distances.length; i++) {
-      if (distances[i] < minDistance) {
-        minDistance = distances[i];
-        minIndex = i;
+    double goalAngleFor = desiredState.angle.getDegrees();
+    double goalAngleRev = goalAngleFor > 0.0 ? goalAngleFor - 180.0 : goalAngleFor + 180.0; // Instead of rotating to the input angle, the swerve module can rotate to a position 180 degrees off and reverse the input velocity to achieve the same result.
+    double currAngle = getAngle();
+    double currAngleMod360 = currAngle - Math.round(currAngle/360.0)*360.0; // Limits currAngle between -180 and 180 degrees. 
+    double[] AngleDistsFor = calcAngleDists(currAngleMod360, goalAngleFor);
+    double[] AngleDistsRev = calcAngleDists(currAngleMod360, goalAngleRev);
+    double[] AngleDists = {AngleDistsFor[0], AngleDistsFor[1], AngleDistsRev[0], AngleDistsRev[1]};
+
+    // Finds the minimum angular distance of the 4 options available. 
+    int minIndex = 0;
+    double minDist = AngleDists[0];
+    for (int currIndex = 1; currIndex < AngleDists.length; currIndex++) {
+      if (AngleDists[currIndex] < minDist) {
+        minDist = AngleDists[currIndex];
+        minIndex = currIndex;
       }
-    }
-    double output = 0;
-    boolean reverse = false;
-    if (minIndex == 0) {
-      if (goalAng > currentAngMod) {
-        output = currentAng + minDistance;
-      } else {
-        output = currentAng - minDistance;
-      }
-    }
-    if (minIndex == 1) {
-      if (goalAng > currentAngMod) {
-        output = currentAng - minDistance;
-      } else {
-        output = currentAng + minDistance;
-      }
-    }
-    if (minIndex == 2) {
-      if (reverseGoalAng > currentAngMod) {
-        output = currentAng + minDistance;
-        reverse = true;
-      } else {
-        output = currentAng - minDistance;
-        reverse = true;
-      }
-    }
-    if (minIndex == 3) {
-      if (reverseGoalAng > currentAngMod) {
-        output = currentAng - minDistance;
-        reverse = true;
-      } else {
-        output = currentAng + minDistance;
-        reverse = true;
-      }
-    }
-    
-    if(reverse) {
-      goalVel = -goalVel;
     }
 
-    turnMotor.set(ControlMode.MotionMagic, output*falconEncoderRes*turnGearRatio/360.0);
-    driveMotor.set(ControlMode.Velocity, goalVel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
-    
-    /*
-    SwerveModuleState optimizedState = SwerveModuleState.optimize(desiredState, Rotation2d.fromDegrees(getAngle()));
-    double goalVel = optimizedState.speedMetersPerSecond;
-    goalAng = optimizedState.angle.getDegrees();
-    // Handles wraparounds that occur at 180/-180 degrees
-    if (goalAng-prevGoalAng > 270.0) {  // -180 -> 180 wraparound 
-      wraparoundOffset = wraparoundOffset - 360.0;
-    } else if (goalAng-prevGoalAng < -270.0) {  // 180 -> -180 wraparound 
-      wraparoundOffset = wraparoundOffset + 360.0;
+    // Sets the output angle based on the minimum angular distance. Also reverses the velocity of the swerve module if the minimum distance is based on a reversed angle. 
+    double outputAngle = 0.0;
+    boolean reverseVel = false;
+    if (minIndex == 0) { // Forward angle, does not cross 180/-180.
+      if (goalAngleFor > currAngleMod360) {
+        outputAngle = currAngle + minDist;
+      } else {
+        outputAngle = currAngle - minDist;
+      }
     }
-    prevGoalAng = goalAng;
+    if (minIndex == 1) { // Forward angle, crosses 180/-180.
+      if (goalAngleFor > currAngleMod360) {
+        outputAngle = currAngle - minDist;
+      } else {
+        outputAngle = currAngle + minDist;
+      }
+    }
+    if (minIndex == 2) { // Reverse angle, does not cross 180/-180
+      if (goalAngleRev > currAngleMod360) {
+        outputAngle = currAngle + minDist;
+        reverseVel = true;
+      } else {
+        outputAngle = currAngle - minDist;
+        reverseVel = true;
+      }
+    }
+    if (minIndex == 3) { // Reverse angle, crosses 180/-180
+      if (goalAngleRev > currAngleMod360) {
+        outputAngle = currAngle - minDist;
+        reverseVel = true;
+      } else {
+        outputAngle = currAngle + minDist;
+        reverseVel = true;
+      }
+    }
+    double goalVel = reverseVel ? -desiredState.speedMetersPerSecond : desiredState.speedMetersPerSecond;
 
-    turnMotor.set(ControlMode.MotionMagic, (goalAng + wraparoundOffset)*falconEncoderRes*turnGearRatio/360.0);
+    turnMotor.set(ControlMode.MotionMagic, outputAngle*falconEncoderRes*turnGearRatio/360.0);
     driveMotor.set(ControlMode.Velocity, goalVel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
-    */
   }
-
-  public double[] calcDistances(double a, double b) {
-    double larger;
-    double smaller;
-    if (b > a) {
-      larger = b;
-      smaller = a;
+  
+  // Calcuates the angular distance between two angles on a circle. The first distance returned does not cross the 180/-180 discontinuity, while the second distance does cross this discontinuity.
+  private double[] calcAngleDists(double angle1, double angle2) {
+    double largerAngle;
+    double smallerAngle;
+    if (angle2 > angle1) {
+      largerAngle = angle2;
+      smallerAngle = angle1;
     } else {
-      larger = a;
-      smaller = b;
+      largerAngle = angle1;
+      smallerAngle = angle2;
     }
-    double[] distances = {larger - smaller, 360 - larger + smaller};
+    double[] distances = {largerAngle - smallerAngle, 360.0 - largerAngle + smallerAngle};
     return distances;
   }
 
@@ -188,9 +161,5 @@ class SwerveModule {
   // Returns the angle of the wheel in degrees. 0 degrees corresponds to facing to the front (+x). 90 degrees in facing left (+y). 
   public double getAngle() {
     return turnMotor.getSelectedSensorPosition(0)*360.0/(falconEncoderRes*turnGearRatio);
-  }
-
-  public double getGoalAngle() {
-    return goalAng;
   }
 }
