@@ -24,7 +24,7 @@ class SwerveModule {
   // Keeps track wraparounds when the wheel angle crosses 180 degrees 
   private double goalAng = 0.0;
   private double prevGoalAng = 0.0;
-  private double wraparoundOffset = 0.0;
+  public double wraparoundOffset = 0.0;
 
   public SwerveModule(int turnID, int driveID, int encoderID, boolean invertDrive) {
     driveMotor = new WPI_TalonFX(driveID);
@@ -75,20 +75,96 @@ class SwerveModule {
   
   // Sets the swerve module to the given state.
   public void setState(SwerveModuleState desiredState) {
+    double goalVel = desiredState.speedMetersPerSecond;
+    double goalAng = desiredState.angle.getDegrees();
+    double currentAng = getAngle();
+    double currentAngMod = getAngle() - Math.round(getAngle()/360)*360;
+    double reverseGoalAng;
+    if (goalAng > 0) {
+      reverseGoalAng = goalAng - 180.0;
+    } else {
+      reverseGoalAng = goalAng + 180.0;
+    }
+    double[] distances = {calcDistances(currentAngMod, goalAng)[0], calcDistances(currentAngMod, goalAng)[1], calcDistances(currentAngMod, reverseGoalAng)[0], calcDistances(currentAngMod, reverseGoalAng)[1]};
+    int minIndex = -1;
+    double minDistance = 360;
+    for (int i = 0; i < distances.length; i++) {
+      if (distances[i] < minDistance) {
+        minDistance = distances[i];
+        minIndex = i;
+      }
+    }
+    double output = 0;
+    boolean reverse = false;
+    if (minIndex == 0) {
+      if (goalAng > currentAngMod) {
+        output = currentAng + minDistance;
+      } else {
+        output = currentAng - minDistance;
+      }
+    }
+    if (minIndex == 1) {
+      if (goalAng > currentAngMod) {
+        output = currentAng - minDistance;
+      } else {
+        output = currentAng + minDistance;
+      }
+    }
+    if (minIndex == 2) {
+      if (reverseGoalAng > currentAngMod) {
+        output = currentAng + minDistance;
+        reverse = true;
+      } else {
+        output = currentAng - minDistance;
+        reverse = true;
+      }
+    }
+    if (minIndex == 3) {
+      if (reverseGoalAng > currentAngMod) {
+        output = currentAng - minDistance;
+        reverse = true;
+      } else {
+        output = currentAng + minDistance;
+        reverse = true;
+      }
+    }
+    
+    if(reverse) {
+      goalVel = -goalVel;
+    }
+
+    turnMotor.set(ControlMode.MotionMagic, output*falconEncoderRes*turnGearRatio/360.0);
+    driveMotor.set(ControlMode.Velocity, goalVel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
+    
+    /*
     SwerveModuleState optimizedState = SwerveModuleState.optimize(desiredState, Rotation2d.fromDegrees(getAngle()));
     double goalVel = optimizedState.speedMetersPerSecond;
     goalAng = optimizedState.angle.getDegrees();
-    
     // Handles wraparounds that occur at 180/-180 degrees
-    if (goalAng-prevGoalAng > 240.0) {  // -180 -> 180 wraparound 
+    if (goalAng-prevGoalAng > 270.0) {  // -180 -> 180 wraparound 
       wraparoundOffset = wraparoundOffset - 360.0;
-    } else if (goalAng-prevGoalAng < -240.0) {  // 180 -> -180 wraparound 
+    } else if (goalAng-prevGoalAng < -270.0) {  // 180 -> -180 wraparound 
       wraparoundOffset = wraparoundOffset + 360.0;
     }
     prevGoalAng = goalAng;
 
-    turnMotor.set(ControlMode.MotionMagic, (wraparoundOffset+goalAng)*falconEncoderRes*turnGearRatio/360.0);
+    turnMotor.set(ControlMode.MotionMagic, (goalAng + wraparoundOffset)*falconEncoderRes*turnGearRatio/360.0);
     driveMotor.set(ControlMode.Velocity, goalVel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
+    */
+  }
+
+  public double[] calcDistances(double a, double b) {
+    double larger;
+    double smaller;
+    if (b > a) {
+      larger = b;
+      smaller = a;
+    } else {
+      larger = a;
+      smaller = b;
+    }
+    double[] distances = {larger - smaller, 360 - larger + smaller};
+    return distances;
   }
 
   public SwerveModuleState getState() {

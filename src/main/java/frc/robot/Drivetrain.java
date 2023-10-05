@@ -50,7 +50,6 @@ class Drivetrain {
   private boolean pathReversal = false;
  
   // Autonomous Swerve Controller Parameters
-  private HolonomicDriveController swerveController;
   private final double kP_move = 1;
   private final double kI_move = 0;
   private final double kD_move = 0;
@@ -59,12 +58,19 @@ class Drivetrain {
   private final double kI_turn = 0;
   private final double kD_turn = 0;
   private final double I_turnMax = 4;
+  private final PIDController xController = new PIDController(kP_move, kI_move, kD_move);
+  private final PIDController yController = new PIDController(kP_move, kI_move, kD_move);
+  private final ProfiledPIDController turnController = new ProfiledPIDController(kP_turn, kI_turn, kD_turn, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel));
+  private final HolonomicDriveController swerveController = new HolonomicDriveController(xController, yController, turnController); // Defining the PID controllers and their constants for trajectory tracking.
+
 
   public Drivetrain() {
+    xController.setIntegratorRange(-I_moveMax, I_moveMax);
+    yController.setIntegratorRange(-I_moveMax, I_moveMax);
+    turnController.setIntegratorRange(-I_turnMax, I_turnMax);
+    turnController.enableContinuousInput(-Math.PI, Math.PI);
     gyro.calibrate();
-    while (gyro.isCalibrating()) {
-      Timer.delay(0.02);
-    }
+    Timer.delay(2);
     gyro.zeroYaw();
   }
   
@@ -88,29 +94,31 @@ class Drivetrain {
     SmartDashboard.putNumber("angVel", angVel);
   }
   
+  // Returns the angular position of the robot in degrees. The angular position is referenced to the starting angle of the robot. CCW is positive.
   public double getAngPos() {
     return -gyro.getYaw();
   }
   
+  // Returns the odometry calculated x position of the robot in meters.
   public double getXPos() {
     return odometry.getPoseMeters().getX();
   }
 
+  // Returns the odometry calculated y position of the robot in meters.
   public double getYPos() {
     return odometry.getPoseMeters().getY();
   }
   
-  // Loads the path. Should be called immediately before the user would like the robot to begin tracking the path. Assumes the robot is starting at the field position idicated by the start point of the path.
+  // Loads the path. All paths should be loaded during robotInit() since this call is computationally expensive.
   public void loadPath(String pathName, boolean resetOdometry) {
-    PIDController xController = new PIDController(kP_move, kI_move, kD_move);
-    xController.setIntegratorRange(-I_moveMax, I_moveMax);
-    PIDController yController = new PIDController(kP_move, kI_move, kD_move);
-    yController.setIntegratorRange(-I_moveMax, I_moveMax);
-    ProfiledPIDController turnController = new ProfiledPIDController(kP_turn, kI_turn, kD_turn, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel));
-    turnController.setIntegratorRange(-I_turnMax, I_turnMax);
-    turnController.enableContinuousInput(-Math.PI, Math.PI);
-    swerveController = new HolonomicDriveController(xController, yController, turnController); // Defining the PID controllers and their constants for trajectory tracking.
     path = PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal); // Uploading the PathPlanner trajectory to the program. The maximum acceleration and velocity can be set to suitable values for auto.
+  }
+
+  // Should be called immediately before the user would like the robot to begin tracking the path. If resetOdometry == true, this call sets the field position of the robot to the starting point of the path.
+  public void resetPathController(boolean resetOdometry) {
+    xController.reset();
+    yController.reset();
+    turnController.reset(getAngPos());
     timer.restart();
     if (resetOdometry) {
       PathPlannerState startingState = path.getInitialState();
@@ -121,8 +129,7 @@ class Drivetrain {
   // Tracks the path. Should be called each period until the endpoint is reached.
   public void followPath() {
     PathPlannerState currentGoal = (PathPlannerState) path.sample(timer.get());
-    Rotation2d currentAngGoal = currentGoal.holonomicRotation;
-    ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentAngGoal); // Calculates the required robot velocities to accurately track the trajectory.
+    ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
     drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, true); // Sets the robot to the correct velocities. 
     SmartDashboard.putNumber("pathXPos", currentGoal.poseMeters.getX());
     SmartDashboard.putNumber("pathYPos", currentGoal.poseMeters.getY());
@@ -157,18 +164,18 @@ class Drivetrain {
     SmartDashboard.putNumber("FL angle", frontLeftModule.getAngle());
     SmartDashboard.putNumber("FL pos", frontLeftModule.getPos());
     SmartDashboard.putNumber("FL vel", frontLeftModule.getVel());
-    SmartDashboard.putNumber("FL goalAngle", frontLeftModule.getGoalAngle());
+    SmartDashboard.putNumber("FL goalAngle", frontLeftModule.getGoalAngle() + frontLeftModule.wraparoundOffset);
     SmartDashboard.putNumber("FR angle", frontRightModule.getAngle());
     SmartDashboard.putNumber("FR pos", frontRightModule.getPos());
     SmartDashboard.putNumber("FR vel", frontRightModule.getVel());
-    SmartDashboard.putNumber("FR goalAngle", frontRightModule.getGoalAngle());
+    SmartDashboard.putNumber("FR goalAngle", frontRightModule.getGoalAngle()+ frontRightModule.wraparoundOffset);
     SmartDashboard.putNumber("BL angle", backLeftModule.getAngle());
     SmartDashboard.putNumber("BL pos", backLeftModule.getPos());
     SmartDashboard.putNumber("BL vel", backLeftModule.getVel());
-    SmartDashboard.putNumber("BL goalAngle", backLeftModule.getGoalAngle());
+    SmartDashboard.putNumber("BL goalAngle", backLeftModule.getGoalAngle() + backLeftModule.wraparoundOffset);
     SmartDashboard.putNumber("BR angle", backRightModule.getAngle());
     SmartDashboard.putNumber("BR pos", backRightModule.getPos());
     SmartDashboard.putNumber("BR vel", backRightModule.getVel());
-    SmartDashboard.putNumber("BR goalAngle", backRightModule.getGoalAngle());
+    SmartDashboard.putNumber("BR goalAngle", backRightModule.getGoalAngle() + backRightModule.wraparoundOffset);
   }
 }
