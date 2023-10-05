@@ -88,36 +88,18 @@ class SwerveModule {
     double outputAngle = 0.0;
     boolean reverseVel = false;
     if (minIndex == 0) { // Forward angle, does not cross 180/-180.
-      if (goalAngleFor > currAngleMod360) {
-        outputAngle = currAngle + minDist;
-      } else {
-        outputAngle = currAngle - minDist;
-      }
+      outputAngle = goalAngleFor > currAngleMod360 ? currAngle + minDist : currAngle - minDist;
     }
     if (minIndex == 1) { // Forward angle, crosses 180/-180.
-      if (goalAngleFor > currAngleMod360) {
-        outputAngle = currAngle - minDist;
-      } else {
-        outputAngle = currAngle + minDist;
-      }
+      outputAngle = goalAngleFor > currAngleMod360 ? currAngle - minDist : currAngle + minDist;
     }
     if (minIndex == 2) { // Reverse angle, does not cross 180/-180
-      if (goalAngleRev > currAngleMod360) {
-        outputAngle = currAngle + minDist;
-        reverseVel = true;
-      } else {
-        outputAngle = currAngle - minDist;
-        reverseVel = true;
-      }
+      outputAngle = goalAngleRev > currAngleMod360 ? currAngle + minDist : currAngle - minDist;
+      reverseVel = true;
     }
     if (minIndex == 3) { // Reverse angle, crosses 180/-180
-      if (goalAngleRev > currAngleMod360) {
-        outputAngle = currAngle - minDist;
-        reverseVel = true;
-      } else {
-        outputAngle = currAngle + minDist;
-        reverseVel = true;
-      }
+      outputAngle = goalAngleRev > currAngleMod360 ? currAngle - minDist : currAngle + minDist;
+      reverseVel = true;
     }
     double goalVel = reverseVel ? -desiredState.speedMetersPerSecond : desiredState.speedMetersPerSecond;
 
