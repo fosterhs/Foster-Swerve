@@ -7,6 +7,7 @@ import com.ctre.phoenix.motorcontrol.can.WPI_TalonFX;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.wpilibj.AnalogEncoder;
 
 class SwerveModule {
   private static final double wheelCirc = 4.0*0.0254*Math.PI; // Circumference of the wheel. Unit: meters
@@ -15,10 +16,12 @@ class SwerveModule {
   private static final double driveGearRatio = 57.0/7.0;
   private static final double currentLimit = 40.0;
 
+  private final AnalogEncoder wheelEncoder;
   private final WPI_TalonFX driveMotor;
   private final WPI_TalonFX turnMotor;
 
   public SwerveModule(int turnID, int driveID, int encoderID, boolean invertDrive) {
+    wheelEncoder = new AnalogEncoder(encoderID);
     driveMotor = new WPI_TalonFX(driveID);
     turnMotor = new WPI_TalonFX(turnID);
 
@@ -143,5 +146,9 @@ class SwerveModule {
   // Returns the angle of the wheel in degrees. 0 degrees corresponds to facing to the front (+x). 90 degrees in facing left (+y). 
   public double getAngle() {
     return turnMotor.getSelectedSensorPosition(0)*360.0/(falconEncoderRes*turnGearRatio);
+  }
+
+  public double getWheelEncoder() {
+    return wheelEncoder.getAbsolutePosition()*360;
   }
 }

@@ -31,16 +31,23 @@ public class Robot extends TimedRobot {
     double rotSpeed = angAccLimiter.calculate(MathUtil.applyDeadband(-stick.getZ(),0.1))*Drivetrain.maxAngularVel;
 
     swerve.drive(xSpeed, ySpeed, rotSpeed, true); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel.
+    swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
   }
 
   public void robotInit() {
     swerve.loadPath("Test Path", true); // Loads the path. Should be called prior to following the path. resetOdometry causes the robot's position to be set to the starting point of the path.
-    swerve.drive(0, 0, 0, true); // Helps prevent loop overruns when the robot is first enabled. This call causes the robot to initialize code in other parts of the program, so it does not need to be initialized during autonomousInit() or teleopInit().
+    
+    // Helps prevent loop overruns when the robot is first enabled. This call causes the robot to initialize code in other parts of the program, so it does not need to be initialized during autonomousInit() or teleopInit().
+    swerve.followPath();
+    swerve.drive(0, 0, 0, false);
+    swerve.updateDash();
   }
 
-  public void robotPeriodic() {}
+  public void robotPeriodic() {
+    swerve.updateDash();
+  }
 
   public void disabledInit() {}
 
   public void disabledPeriodic() {}
-};
+}
