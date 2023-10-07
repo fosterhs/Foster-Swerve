@@ -73,9 +73,7 @@ class SwerveModule {
     double goalAngleRev = goalAngleFor > 0.0 ? goalAngleFor - 180.0 : goalAngleFor + 180.0; // Instead of rotating to the input angle, the swerve module can rotate to a position 180 degrees off and reverse the input velocity to achieve the same result.
     double currAngle = getAngle();
     double currAngleMod360 = currAngle - Math.round(currAngle/360.0)*360.0; // Limits currAngle between -180 and 180 degrees. 
-    double[] AngleDistsFor = calcAngleDists(currAngleMod360, goalAngleFor);
-    double[] AngleDistsRev = calcAngleDists(currAngleMod360, goalAngleRev);
-    double[] AngleDists = {AngleDistsFor[0], AngleDistsFor[1], AngleDistsRev[0], AngleDistsRev[1]};
+    double[] AngleDists = {Math.abs(currAngleMod360 - goalAngleFor), 360.0 - Math.abs(currAngleMod360 - goalAngleFor), Math.abs(currAngleMod360 - goalAngleRev), 360.0 - Math.abs(currAngleMod360 - goalAngleRev)}; // Calculates the 4 possible angluar distances to the forwards and reverse goals from the current angle.
 
     // Finds the minimum angular distance of the 4 options available. 
     int minIndex = 0;
@@ -88,7 +86,7 @@ class SwerveModule {
     }
 
     // Sets the output angle based on the minimum angular distance. Also reverses the velocity of the swerve module if the minimum distance is based on a reversed angle. 
-    double outputAngle = 0.0;
+    double outputAngle = currAngle;
     boolean reverseVel = false;
     if (minIndex == 0) { // Forward angle, does not cross 180/-180.
       outputAngle = goalAngleFor > currAngleMod360 ? currAngle + minDist : currAngle - minDist;
@@ -108,21 +106,6 @@ class SwerveModule {
 
     turnMotor.set(ControlMode.MotionMagic, outputAngle*falconEncoderRes*turnGearRatio/360.0);
     driveMotor.set(ControlMode.Velocity, goalVel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
-  }
-  
-  // Calcuates the angular distance between two angles on a circle. The first distance returned does not cross the 180/-180 discontinuity, while the second distance does cross this discontinuity.
-  private double[] calcAngleDists(double angle1, double angle2) {
-    double largerAngle;
-    double smallerAngle;
-    if (angle2 > angle1) {
-      largerAngle = angle2;
-      smallerAngle = angle1;
-    } else {
-      largerAngle = angle1;
-      smallerAngle = angle2;
-    }
-    double[] distances = {largerAngle - smallerAngle, 360.0 - largerAngle + smallerAngle};
-    return distances;
   }
 
   public SwerveModuleState getState() {

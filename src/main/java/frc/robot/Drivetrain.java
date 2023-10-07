@@ -21,9 +21,11 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 class Drivetrain {
-  public static final double maxVel = 4; // User defined maximum speed of the robot. Unit: meters per second
+  public static final double maxVel = 4.0; // User defined maximum speed of the robot. Unit: meters per second
   public static final double maxAngularVel = 2*Math.PI; // User defined maximum rotational speed of the robot. Unit: raidans per second
- 
+  public static final double maxAcc = 12.0; // User defined maximum acceleration of the robot. Unit: meters per second^2
+  public static final double maxAngularAcc = 6*Math.PI; // User defined maximum rotational acceleration of the robot. Unit: raidans per second^2
+
   // Positions of the swerve modules relative to the center of the roboot. +x points towards the robot's front. +y points to the robot's left.
   private static final Translation2d frontLeftPos = new Translation2d(0.225, 0.225);
   private static final Translation2d frontRightPos = new Translation2d(0.225, -0.225); 
@@ -117,6 +119,17 @@ class Drivetrain {
   public double getYPos() {
     return odometry.getPoseMeters().getY();
   }
+ 
+  // Resets the robot's odometry pose to x=0, y=0, and heading=0.
+  public void resetOdometry() {
+    odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, new Pose2d());
+  }
+
+  // Resets the robot's odometry to the start point of the path loaded into loadPath()
+  public void resetOdometryToPathStart() {
+    PathPlannerState startingState = path.getInitialState();
+    odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
+  }
   
   // Loads the path. All paths should be loaded during robotInit() since this call is computationally expensive.
   public void loadPath(String pathName, boolean resetOdometry) {
@@ -130,8 +143,7 @@ class Drivetrain {
     turnController.reset(getAngPos());
     timer.restart();
     if (resetOdometry) {
-      PathPlannerState startingState = path.getInitialState();
-      odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
+      resetOdometryToPathStart();
     }
   }
   

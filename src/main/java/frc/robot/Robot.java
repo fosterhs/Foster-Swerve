@@ -9,10 +9,10 @@ public class Robot extends TimedRobot {
   private final Joystick stick = new Joystick(0);
   private final Drivetrain swerve = new Drivetrain(); // Initializes the drivetrain (swerve modules)
 
-  // Limits the acceleration of controller inputs. A limit of 3 corresponds to 1/3 of a second to reach max output from 0.
-  private final SlewRateLimiter xAccLimiter = new SlewRateLimiter(3.0);
-  private final SlewRateLimiter yAccLimiter = new SlewRateLimiter(3.0);
-  private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(3.0);
+  // Limits the acceleration of controller inputs. 
+  private final SlewRateLimiter xAccLimiter = new SlewRateLimiter(Drivetrain.maxAcc/Drivetrain.maxVel);
+  private final SlewRateLimiter yAccLimiter = new SlewRateLimiter(Drivetrain.maxAcc/Drivetrain.maxVel);
+  private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(Drivetrain.maxAngularAcc/Drivetrain.maxAngularVel);
 
   public void autonomousInit() {
     swerve.resetPathController(true);
@@ -40,6 +40,7 @@ public class Robot extends TimedRobot {
     // Helps prevent loop overruns when the robot is first enabled. This call causes the robot to initialize code in other parts of the program, so it does not need to be initialized during autonomousInit() or teleopInit().
     swerve.followPath();
     swerve.drive(0, 0, 0, false);
+    swerve.resetOdometry();
     swerve.updateDash();
   }
 
