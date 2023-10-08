@@ -24,47 +24,49 @@ class SwerveModule {
     wheelEncoder = new AnalogEncoder(encoderID);
     driveMotor = new WPI_TalonFX(driveID);
     turnMotor = new WPI_TalonFX(turnID);
-
-    driveMotor.configFactoryDefault();
-    turnMotor.configFactoryDefault();
+    
+    while (driveMotor.configFactoryDefault(30).value != 0);
+    while (turnMotor.configFactoryDefault(30).value != 0);
     
     // Limits current draw for each motor to 40 amps
     TalonFXConfiguration config = new TalonFXConfiguration();
     config.supplyCurrLimit.enable = true;
     config.supplyCurrLimit.triggerThresholdCurrent = currentLimit;
-    config.supplyCurrLimit.triggerThresholdTime = 0.1;
+    config.supplyCurrLimit.triggerThresholdTime = 0.5;
     config.supplyCurrLimit.currentLimit = currentLimit;
 
-    turnMotor.configAllSettings(config);
-    turnMotor.setSelectedSensorPosition(0);
+    while (turnMotor.configAllSettings(config, 30).value != 0);
+    while (turnMotor.setSelectedSensorPosition(0, 0, 30).value != 0);
     turnMotor.setNeutralMode(NeutralMode.Brake);
     
     // Motion Magic parameters for the turning motor
     double kI_turn = 0.001;
-    turnMotor.config_kP(0, 0.4);
-    turnMotor.config_kI(0, kI_turn);
-    turnMotor.config_kD(0, 3.0);
-    turnMotor.configMotionAcceleration(100000);
-    turnMotor.configMotionCruiseVelocity(200000);
-    turnMotor.configAllowableClosedloopError(0, 20);
-    turnMotor.configMaxIntegralAccumulator(0, 0.8*1023/kI_turn);
+    while (turnMotor.config_kP(0, 0.4, 30).value != 0);
+    while (turnMotor.config_kI(0, kI_turn, 30).value != 0);
+    while (turnMotor.config_kD(0, 3.0, 30).value != 0);
+    while (turnMotor.configMotionAcceleration(100000, 30).value != 0);
+    while (turnMotor.configMotionCruiseVelocity(200000, 30).value != 0);
+    while (turnMotor.configAllowableClosedloopError(0, 20, 30).value != 0);
+    while (turnMotor.configMaxIntegralAccumulator(0, 0.8*1023/kI_turn, 30).value != 0);
 
-    driveMotor.configAllSettings(config);
-    driveMotor.setSelectedSensorPosition(0);
+    while (driveMotor.configAllSettings(config, 30).value != 0);
+    while (driveMotor.setSelectedSensorPosition(0, 0, 30).value != 0);
     driveMotor.setNeutralMode(NeutralMode.Brake);
     
     // Velocity control parameters for the drive motor
     double kI_drive = 0.0003;
-    driveMotor.config_kP(0, 0.04);
-    driveMotor.config_kI(0, kI_drive);
-    driveMotor.config_kD(0, 1.0);
-    driveMotor.config_kF(0, 0.0447);
-    driveMotor.configMaxIntegralAccumulator(0, 0.8*1023.0/kI_drive);
+    while (driveMotor.config_kP(0, 0.04, 30).value != 0);
+    while (driveMotor.config_kI(0, kI_drive, 30).value != 0);
+    while (driveMotor.config_kD(0, 1.0, 30).value != 0);
+    while (driveMotor.config_kF(0, 0.0447, 30).value != 0);
+    while (driveMotor.configMaxIntegralAccumulator(0, 0.8*1023.0/kI_drive, 30).value != 0);
 
     if (invertDrive) {
       driveMotor.setInverted(true);
     }
     turnMotor.setInverted(true);
+
+    System.out.println("Motors " + String.valueOf(turnID) + " and " + String.valueOf(encoderID) + " configured successfully.");
   }
   
   // Sets the swerve module to the given state.

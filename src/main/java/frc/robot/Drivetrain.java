@@ -40,6 +40,7 @@ class Drivetrain {
   private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
   
   private final AHRS gyro = new AHRS();
+  public boolean gyroFailure = false;
   
   // Path Following
   private PathPlannerTrajectory path;
@@ -78,9 +79,11 @@ class Drivetrain {
     yController.setIntegratorRange(-I_moveMax, I_moveMax);
     turnController.setIntegratorRange(-I_turnMax, I_turnMax);
     turnController.enableContinuousInput(-Math.PI, Math.PI);
-    gyro.calibrate();
-    Timer.delay(2);
-    gyro.zeroYaw();
+    if (gyro.isConnected()) {
+      gyro.calibrate();
+      Timer.delay(2);
+      zeroGyro();
+    }
   }
   
   // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
@@ -107,7 +110,12 @@ class Drivetrain {
   
   // Returns the angular position of the robot in degrees. The angular position is referenced to the starting angle of the robot. CCW is positive.
   public double getAngPos() {
-    return -gyro.getYaw();
+    if (gyro.isConnected() && !gyroFailure) {
+      return -gyro.getYaw();
+    } else {
+      gyroFailure = true;
+      return 0;
+    }
   }
   
   // Returns the odometry calculated x position of the robot in meters.
@@ -177,6 +185,13 @@ class Drivetrain {
 
   public void setMaxPathAcc(double desiredMaxAcc) {
     maxPathAcc = desiredMaxAcc;
+  }
+
+  public void zeroGyro() {
+    gyroFailure = !gyro.isConnected();
+    if (gyro.isConnected()) {
+      gyro.zeroYaw();
+    }
   }
   
   // Publishes all values to Smart Dashboard.

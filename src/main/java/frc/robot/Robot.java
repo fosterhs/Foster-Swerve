@@ -32,6 +32,10 @@ public class Robot extends TimedRobot {
 
     swerve.drive(xSpeed, ySpeed, rotSpeed, true); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel.
     swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
+
+    if (stick.getRawButtonPressed(1)) {
+      swerve.zeroGyro();
+    }
   }
 
   public void robotInit() {
