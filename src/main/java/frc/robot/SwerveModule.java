@@ -38,8 +38,7 @@ class SwerveModule {
 
     configDriveMotor();
     configTurnMotor();
-    moduleError = turnMotorError || driveMotorError;
-    moduleOffline = turnMotorOffline && driveMotorOffline;
+    updateModuleStatus();
   }
 
   // Sets the swerve module to the given state.
@@ -144,6 +143,10 @@ class SwerveModule {
       disableDriveMotor();
       disableTurnMotor();
     }
+    updateModuleStatus();
+  }
+
+  private void updateModuleStatus() {
     moduleOffline = turnMotorOffline && driveMotorOffline;
     moduleError = turnMotorError || driveMotorError;
   }
