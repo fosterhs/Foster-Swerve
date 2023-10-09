@@ -38,7 +38,8 @@ class Drivetrain {
   private final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
   private final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
   private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
-  
+  private final boolean moduleFailure;
+
   private final AHRS gyro = new AHRS();
   public boolean gyroFailure = false;
   
@@ -53,16 +54,16 @@ class Drivetrain {
   private boolean pathReversal = false;
  
   // Autonomous Swerve Controller Parameters
-  private final double kP_move = 1;
-  private final double kI_move = 0;
-  private final double kD_move = 0;
-  private final double I_moveMax = 4;
+  private final double kP_drive = 1;
+  private final double kI_drive = 0;
+  private final double kD_drive = 0;
+  private final double I_driveMax = 4;
   private final double kP_turn = 1;
   private final double kI_turn = 0;
   private final double kD_turn = 0;
   private final double I_turnMax = 4;
-  private final PIDController xController = new PIDController(kP_move, kI_move, kD_move);
-  private final PIDController yController = new PIDController(kP_move, kI_move, kD_move);
+  private final PIDController xController = new PIDController(kP_drive, kI_drive, kD_drive);
+  private final PIDController yController = new PIDController(kP_drive, kI_drive, kD_drive);
   private final ProfiledPIDController turnController = new ProfiledPIDController(kP_turn, kI_turn, kD_turn, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel));
   private final HolonomicDriveController swerveController = new HolonomicDriveController(xController, yController, turnController); // Defining the PID controllers and their constants for trajectory tracking.
   
@@ -75,8 +76,8 @@ class Drivetrain {
   private double pathAngPos = 0;
 
   public Drivetrain() {
-    xController.setIntegratorRange(-I_moveMax, I_moveMax);
-    yController.setIntegratorRange(-I_moveMax, I_moveMax);
+    xController.setIntegratorRange(-I_driveMax, I_driveMax);
+    yController.setIntegratorRange(-I_driveMax, I_driveMax);
     turnController.setIntegratorRange(-I_turnMax, I_turnMax);
     turnController.enableContinuousInput(-Math.PI, Math.PI);
     if (gyro.isConnected()) {
@@ -84,6 +85,7 @@ class Drivetrain {
       Timer.delay(2);
       zeroGyro();
     }
+    moduleFailure = frontLeftModule.driveMotorOffline || frontLeftModule.turnMotorOffline || frontRightModule.driveMotorOffline || frontRightModule.turnMotorOffline || backLeftModule.driveMotorOffline || backLeftModule.turnMotorOffline || backRightModule.driveMotorOffline || backRightModule.turnMotorOffline;
   }
   
   // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
@@ -92,7 +94,7 @@ class Drivetrain {
     yVel = _yVel;
     angVel = _angVel;
     SwerveModuleState[] moduleStates;
-    if (fieldRelative) {
+    if (fieldRelative && !gyroFailure) {
       moduleStates = kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVel, yVel, angVel, Rotation2d.fromDegrees(getAngPos())));
     } else {
       moduleStates = kinematics.toSwerveModuleStates(new ChassisSpeeds(xVel, yVel, angVel));
@@ -157,21 +159,29 @@ class Drivetrain {
   
   // Tracks the path. Should be called each period until the endpoint is reached.
   public void followPath() {
-    updateOdometry();
-    PathPlannerState currentGoal = (PathPlannerState) path.sample(timer.get());
-    ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
-    drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, true); // Sets the robot to the correct velocities. 
-    pathXPos = currentGoal.poseMeters.getX();
-    pathYPos = currentGoal.poseMeters.getY();
-    pathAngPos = currentGoal.poseMeters.getRotation().getDegrees();
+    if (!gyroFailure && !moduleFailure) {
+      updateOdometry();
+      PathPlannerState currentGoal = (PathPlannerState) path.sample(timer.get());
+      ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
+      drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, true); // Sets the robot to the correct velocities. 
+      pathXPos = currentGoal.poseMeters.getX();
+      pathYPos = currentGoal.poseMeters.getY();
+      pathAngPos = currentGoal.poseMeters.getRotation().getDegrees();
+    } else {
+      drive(0, 0, 0, false);
+    }
   }
   
   // Tells whether the robot has reached the endpoint of the path, within the specified tolerance.
   public boolean atEndpoint() {
-    PathPlannerState endState = path.getEndState();
-    return Math.abs(getAngPos() - endState.poseMeters.getRotation().getDegrees()) < pathAngTol 
-    && Math.abs(getXPos() - endState.poseMeters.getX()) < pathXTol 
-    && Math.abs(getYPos() - endState.poseMeters.getY()) < pathYTol;
+    if (!gyroFailure && !moduleFailure) {
+      PathPlannerState endState = path.getEndState();
+      return Math.abs(getAngPos() - endState.poseMeters.getRotation().getDegrees()) < pathAngTol 
+      && Math.abs(getXPos() - endState.poseMeters.getX()) < pathXTol 
+      && Math.abs(getYPos() - endState.poseMeters.getY()) < pathYTol;
+    } else {
+      return false;
+    }
   }
   
   // Path following parameters should be adjusted using these functions prior to calling loadPath().
@@ -192,6 +202,26 @@ class Drivetrain {
     if (gyro.isConnected()) {
       gyro.zeroYaw();
     }
+  }
+
+  public void disableFL() {
+    frontLeftModule.disableDriveMotor();
+    frontLeftModule.disableTurnMotor();
+  }
+
+  public void disableFR() {
+    frontRightModule.disableDriveMotor();
+    frontRightModule.disableTurnMotor();
+  }
+
+  public void disableBL() {
+    backLeftModule.disableDriveMotor();
+    backLeftModule.disableTurnMotor();
+  }
+
+  public void disableBR() {
+    backRightModule.disableDriveMotor();
+    backRightModule.disableTurnMotor();
   }
   
   // Publishes all values to Smart Dashboard.

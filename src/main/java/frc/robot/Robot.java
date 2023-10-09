@@ -36,6 +36,18 @@ public class Robot extends TimedRobot {
     if (stick.getRawButtonPressed(1)) {
       swerve.zeroGyro();
     }
+    if (stick.getRawButtonPressed(2)) {
+      swerve.disableFL();
+    }
+    if (stick.getRawButtonPressed(3)) {
+      swerve.disableFR();
+    }
+    if (stick.getRawButtonPressed(4)) {
+      swerve.disableBL();
+    }
+    if (stick.getRawButtonPressed(5)) {
+      swerve.disableBR();
+    }
   }
 
   public void robotInit() {

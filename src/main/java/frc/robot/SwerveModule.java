@@ -20,55 +20,20 @@ class SwerveModule {
   private final WPI_TalonFX driveMotor;
   private final WPI_TalonFX turnMotor;
 
+  // Motor error code tracking variables.
+  private int maxMotorErrors = 20;
+  public boolean driveMotorOffline = false;
+  public boolean turnMotorOffline = false;
+
   public SwerveModule(int turnID, int driveID, int encoderID, boolean invertDrive) {
     wheelEncoder = new AnalogEncoder(encoderID);
     driveMotor = new WPI_TalonFX(driveID);
     turnMotor = new WPI_TalonFX(turnID);
-    
-    while (driveMotor.configFactoryDefault(30).value != 0);
-    while (turnMotor.configFactoryDefault(30).value != 0);
-    
-    // Limits current draw for each motor to 40 amps
-    TalonFXConfiguration config = new TalonFXConfiguration();
-    config.supplyCurrLimit.enable = true;
-    config.supplyCurrLimit.triggerThresholdCurrent = currentLimit;
-    config.supplyCurrLimit.triggerThresholdTime = 0.5;
-    config.supplyCurrLimit.currentLimit = currentLimit;
 
-    while (turnMotor.configAllSettings(config, 30).value != 0);
-    while (turnMotor.setSelectedSensorPosition(0, 0, 30).value != 0);
-    turnMotor.setNeutralMode(NeutralMode.Brake);
-    
-    // Motion Magic parameters for the turning motor
-    double kI_turn = 0.001;
-    while (turnMotor.config_kP(0, 0.4, 30).value != 0);
-    while (turnMotor.config_kI(0, kI_turn, 30).value != 0);
-    while (turnMotor.config_kD(0, 3.0, 30).value != 0);
-    while (turnMotor.configMotionAcceleration(100000, 30).value != 0);
-    while (turnMotor.configMotionCruiseVelocity(200000, 30).value != 0);
-    while (turnMotor.configAllowableClosedloopError(0, 20, 30).value != 0);
-    while (turnMotor.configMaxIntegralAccumulator(0, 0.8*1023/kI_turn, 30).value != 0);
-
-    while (driveMotor.configAllSettings(config, 30).value != 0);
-    while (driveMotor.setSelectedSensorPosition(0, 0, 30).value != 0);
-    driveMotor.setNeutralMode(NeutralMode.Brake);
-    
-    // Velocity control parameters for the drive motor
-    double kI_drive = 0.0003;
-    while (driveMotor.config_kP(0, 0.04, 30).value != 0);
-    while (driveMotor.config_kI(0, kI_drive, 30).value != 0);
-    while (driveMotor.config_kD(0, 1.0, 30).value != 0);
-    while (driveMotor.config_kF(0, 0.0447, 30).value != 0);
-    while (driveMotor.configMaxIntegralAccumulator(0, 0.8*1023.0/kI_drive, 30).value != 0);
-
-    if (invertDrive) {
-      driveMotor.setInverted(true);
-    }
-    turnMotor.setInverted(true);
-
-    System.out.println("Motors " + String.valueOf(turnID) + " and " + String.valueOf(encoderID) + " configured successfully.");
+    configDriveMotor(invertDrive);
+    configTurnMotor();
   }
-  
+
   // Sets the swerve module to the given state.
   public void setState(SwerveModuleState desiredState) {
     double goalAngleFor = desiredState.angle.getDegrees();
@@ -92,48 +57,252 @@ class SwerveModule {
     boolean reverseVel = false;
     if (minIndex == 0) { // Forward angle, does not cross 180/-180.
       outputAngle = goalAngleFor > currAngleMod360 ? currAngle + minDist : currAngle - minDist;
-    }
-    if (minIndex == 1) { // Forward angle, crosses 180/-180.
+    } else if (minIndex == 1) { // Forward angle, crosses 180/-180.
       outputAngle = goalAngleFor > currAngleMod360 ? currAngle - minDist : currAngle + minDist;
-    }
-    if (minIndex == 2) { // Reverse angle, does not cross 180/-180
+    } else if (minIndex == 2) { // Reverse angle, does not cross 180/-180
       outputAngle = goalAngleRev > currAngleMod360 ? currAngle + minDist : currAngle - minDist;
       reverseVel = true;
-    }
-    if (minIndex == 3) { // Reverse angle, crosses 180/-180
+    } else { // Reverse angle, crosses 180/-180
       outputAngle = goalAngleRev > currAngleMod360 ? currAngle - minDist : currAngle + minDist;
       reverseVel = true;
     }
     double goalVel = reverseVel ? -desiredState.speedMetersPerSecond : desiredState.speedMetersPerSecond;
 
-    turnMotor.set(ControlMode.MotionMagic, outputAngle*falconEncoderRes*turnGearRatio/360.0);
-    driveMotor.set(ControlMode.Velocity, goalVel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
+    setAngle(outputAngle);
+    setVel(goalVel);
   }
-
+  
+  // Returns the velocity and angle of the module.
   public SwerveModuleState getState() {
     return new SwerveModuleState(getVel(), Rotation2d.fromDegrees(getAngle()));
   }
-
+  
+  // Returns the postion and angle of the module.
   public SwerveModulePosition getPosition() {
     return new SwerveModulePosition(getPos(), Rotation2d.fromDegrees(getAngle()));
   }
 
   // Returns the velocity of the wheel. Unit: meters per second
   public double getVel() {
-    return driveMotor.getSelectedSensorVelocity(0)*10.0*wheelCirc/(falconEncoderRes*driveGearRatio);
+    if (!turnMotorOffline) {
+      return driveMotor.getSelectedSensorVelocity(0)*10.0*wheelCirc/(falconEncoderRes*driveGearRatio);
+    } else {
+      return 0;
+    }
   }
 
   // Returns total distance the wheel has rotated. Unit: meters
   public double getPos() {
-    return driveMotor.getSelectedSensorPosition(0)*wheelCirc/(falconEncoderRes*driveGearRatio);
+    if (!turnMotorOffline) {
+      return driveMotor.getSelectedSensorPosition(0)*wheelCirc/(falconEncoderRes*driveGearRatio);
+    } else {
+      return 0;
+    }
   }
   
   // Returns the angle of the wheel in degrees. 0 degrees corresponds to facing to the front (+x). 90 degrees in facing left (+y). 
   public double getAngle() {
-    return turnMotor.getSelectedSensorPosition(0)*360.0/(falconEncoderRes*turnGearRatio);
+    if (!turnMotorOffline) {
+      return turnMotor.getSelectedSensorPosition(0)*360.0/(falconEncoderRes*turnGearRatio);
+    } else {
+      return 0;
+    }
   }
 
   public double getWheelEncoder() {
     return wheelEncoder.getAbsolutePosition()*360;
+  }
+  
+  // Sets the velocity of the module. Units: meters per second
+  private void setVel(double vel) {
+    if (!driveMotorOffline) {
+      driveMotor.set(ControlMode.Velocity, vel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
+    }
+  }
+  
+  // Sets the angle of the module. Units: degrees
+  private void setAngle(double angle) {
+    if (!turnMotorOffline) {
+      turnMotor.set(ControlMode.MotionMagic, angle*falconEncoderRes*turnGearRatio/360.0);
+    }
+  }
+
+  // Disables the turn motor in the case of too many CAN errors.
+  public void disableTurnMotor() {
+    turnMotor.setNeutralMode(NeutralMode.Coast);
+    turnMotor.disable();
+  }
+
+  // Disables the drive motor in the case of too many CAN errors.
+  public void disableDriveMotor() {
+    driveMotor.setNeutralMode(NeutralMode.Coast);
+    driveMotor.disable();
+  }
+
+  private void configDriveMotor(boolean invertDrive) {
+    int driveMotorErrors = 0;
+
+    while (driveMotor.configFactoryDefault(30).value != 0) {
+      driveMotorErrors++;
+      driveMotorOffline = driveMotorErrors > maxMotorErrors;
+      if (driveMotorOffline) {
+        break;
+      }
+    }
+
+    while (driveMotor.configAllSettings(configCurrentLimit(), 30).value != 0) {
+      driveMotorErrors++;
+      driveMotorOffline = driveMotorErrors > maxMotorErrors;
+      if (driveMotorOffline) {
+        break;
+      }
+    }
+    while (driveMotor.setSelectedSensorPosition(0, 0, 30).value != 0) {
+      driveMotorErrors++;
+      driveMotorOffline = driveMotorErrors > maxMotorErrors;
+      if (driveMotorOffline) {
+        break;
+      }
+    }
+    driveMotor.setNeutralMode(NeutralMode.Brake);
+    driveMotor.setInverted(invertDrive);
+
+    // Velocity control parameters for the drive motor
+    double kI_drive = 0.0003;
+    while (driveMotor.config_kP(0, 0.04, 30).value != 0) {
+      driveMotorErrors++;
+      driveMotorOffline = driveMotorErrors > maxMotorErrors;
+      if (driveMotorOffline) {
+        break;
+      }
+    }
+    while (driveMotor.config_kI(0, kI_drive, 30).value != 0) {
+      driveMotorErrors++;
+      driveMotorOffline = driveMotorErrors > maxMotorErrors;
+      if (driveMotorOffline) {
+        break;
+      }
+    }
+    while (driveMotor.config_kD(0, 1.0, 30).value != 0) {
+      driveMotorErrors++;
+      driveMotorOffline = driveMotorErrors > maxMotorErrors;
+      if (driveMotorOffline) {
+        break;
+      }
+    }
+    while (driveMotor.config_kF(0, 0.0447, 30).value != 0) {
+      driveMotorErrors++;
+      driveMotorOffline = driveMotorErrors > maxMotorErrors;
+      if (driveMotorOffline) {
+        break;
+      }
+    }
+    while (driveMotor.configMaxIntegralAccumulator(0, 0.8*1023.0/kI_drive, 30).value != 0) {
+      driveMotorErrors++;
+      driveMotorOffline = driveMotorErrors > maxMotorErrors;
+      if (driveMotorOffline) {
+        break;
+      }
+    }
+
+    // Disables the motor in the case of too many CAN errors.
+    if (driveMotorOffline) {
+      disableDriveMotor();
+    }
+  }
+  
+  private void configTurnMotor() {
+    int turnMotorErrors = 0;
+
+    while (turnMotor.configFactoryDefault(30).value != 0) {
+      turnMotorErrors++;
+      turnMotorOffline = turnMotorErrors > maxMotorErrors;
+      if (turnMotorOffline) {
+        break;
+      }
+    }
+
+    while (turnMotor.configAllSettings(configCurrentLimit(), 30).value != 0) {
+      turnMotorErrors++;
+      turnMotorOffline = turnMotorErrors > maxMotorErrors;
+      if (turnMotorOffline) {
+        break;
+      }
+    }
+    while (turnMotor.setSelectedSensorPosition(0, 0, 30).value != 0) {
+      turnMotorErrors++;
+      turnMotorOffline = turnMotorErrors > maxMotorErrors;
+      if (turnMotorOffline) {
+        break;
+      }
+    }
+    turnMotor.setNeutralMode(NeutralMode.Brake);
+    turnMotor.setInverted(true);
+
+    // Sets position control parameters for the turn motor
+    double kI_turn = 0.001;
+    while (turnMotor.config_kP(0, 0.4, 30).value != 0) {
+      turnMotorErrors++;
+      turnMotorOffline = turnMotorErrors > maxMotorErrors;
+      if (turnMotorOffline) {
+        break;
+      }
+    }
+    while (turnMotor.config_kI(0, kI_turn, 30).value != 0) {
+      turnMotorErrors++;
+      turnMotorOffline = turnMotorErrors > maxMotorErrors;
+      if (turnMotorOffline) {
+        break;
+      }
+    }
+    while (turnMotor.config_kD(0, 3.0, 30).value != 0) {
+      turnMotorErrors++;
+      turnMotorOffline = turnMotorErrors > maxMotorErrors;
+      if (turnMotorOffline) {
+        break;
+      }
+    }
+    while (turnMotor.configMotionAcceleration(100000, 30).value != 0) {
+      turnMotorErrors++;
+      turnMotorOffline = turnMotorErrors > maxMotorErrors;
+      if (turnMotorOffline) {
+        break;
+      }
+    }
+    while (turnMotor.configMotionCruiseVelocity(200000, 30).value != 0) {
+      turnMotorErrors++;
+      turnMotorOffline = turnMotorErrors > maxMotorErrors;
+      if (turnMotorOffline) {
+        break;
+      }
+    }
+    while (turnMotor.configAllowableClosedloopError(0, 20, 30).value != 0) {
+      turnMotorErrors++;
+      turnMotorOffline = turnMotorErrors > maxMotorErrors;
+      if (turnMotorOffline) {
+        break;
+      }
+    }
+    while (turnMotor.configMaxIntegralAccumulator(0, 0.8*1023/kI_turn, 30).value != 0) {
+      turnMotorErrors++;
+      turnMotorOffline = turnMotorErrors > maxMotorErrors;
+      if (turnMotorOffline) {
+        break;
+      }
+    }
+    
+    if (turnMotorOffline) {
+      disableTurnMotor();
+    }
+  }
+
+  // Creates a configuration object that limits the current draw for each motor to 40 amps
+  private TalonFXConfiguration configCurrentLimit() {
+    TalonFXConfiguration config = new TalonFXConfiguration();
+    config.supplyCurrLimit.enable = true;
+    config.supplyCurrLimit.triggerThresholdCurrent = currentLimit;
+    config.supplyCurrLimit.triggerThresholdTime = 0.5;
+    config.supplyCurrLimit.currentLimit = currentLimit;
+    return config;
   }
 }
