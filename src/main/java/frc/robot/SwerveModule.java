@@ -19,19 +19,27 @@ class SwerveModule {
   private final AnalogEncoder wheelEncoder;
   private final WPI_TalonFX driveMotor;
   private final WPI_TalonFX turnMotor;
+  private final boolean invertDrive;
 
   // Motor error code tracking variables.
-  private int maxMotorErrors = 20;
+  private final int maxMotorErrors = 20;
+  public boolean driveMotorError = false;
+  public boolean turnMotorError = false;
+  public boolean moduleError = false;
   public boolean driveMotorOffline = false;
   public boolean turnMotorOffline = false;
+  public boolean moduleOffline = false;
 
-  public SwerveModule(int turnID, int driveID, int encoderID, boolean invertDrive) {
+  public SwerveModule(int turnID, int driveID, int encoderID, boolean _invertDrive) {
     wheelEncoder = new AnalogEncoder(encoderID);
     driveMotor = new WPI_TalonFX(driveID);
     turnMotor = new WPI_TalonFX(turnID);
+    invertDrive = _invertDrive;
 
-    configDriveMotor(invertDrive);
+    configDriveMotor();
     configTurnMotor();
+    moduleError = turnMotorError || driveMotorError;
+    moduleOffline = turnMotorOffline && driveMotorOffline;
   }
 
   // Sets the swerve module to the given state.
@@ -84,7 +92,7 @@ class SwerveModule {
 
   // Returns the velocity of the wheel. Unit: meters per second
   public double getVel() {
-    if (!turnMotorOffline) {
+    if (!turnMotorError && !moduleOffline) {
       return driveMotor.getSelectedSensorVelocity(0)*10.0*wheelCirc/(falconEncoderRes*driveGearRatio);
     } else {
       return 0;
@@ -93,7 +101,7 @@ class SwerveModule {
 
   // Returns total distance the wheel has rotated. Unit: meters
   public double getPos() {
-    if (!turnMotorOffline) {
+    if (!turnMotorError && !moduleOffline) {
       return driveMotor.getSelectedSensorPosition(0)*wheelCirc/(falconEncoderRes*driveGearRatio);
     } else {
       return 0;
@@ -102,7 +110,7 @@ class SwerveModule {
   
   // Returns the angle of the wheel in degrees. 0 degrees corresponds to facing to the front (+x). 90 degrees in facing left (+y). 
   public double getAngle() {
-    if (!turnMotorOffline) {
+    if (!turnMotorError && !moduleOffline) {
       return turnMotor.getSelectedSensorPosition(0)*360.0/(falconEncoderRes*turnGearRatio);
     } else {
       return 0;
@@ -115,52 +123,79 @@ class SwerveModule {
   
   // Sets the velocity of the module. Units: meters per second
   private void setVel(double vel) {
-    if (!driveMotorOffline) {
+    if (!driveMotorError && !moduleOffline) {
       driveMotor.set(ControlMode.Velocity, vel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
     }
   }
   
   // Sets the angle of the module. Units: degrees
   private void setAngle(double angle) {
-    if (!turnMotorOffline) {
+    if (!turnMotorError && !moduleOffline) {
       turnMotor.set(ControlMode.MotionMagic, angle*falconEncoderRes*turnGearRatio/360.0);
     }
   }
 
+  // Toggles whether the module is enabled or disabled. Returns true if enabled.
+  public void toggleModule() {
+    if (moduleOffline) {
+      enableDriveMotor();
+      enableTurnMotor();
+    } else {
+      disableDriveMotor();
+      disableTurnMotor();
+    }
+    moduleOffline = turnMotorOffline && driveMotorOffline;
+    moduleError = turnMotorError || driveMotorError;
+  }
+
   // Disables the turn motor in the case of too many CAN errors.
-  public void disableTurnMotor() {
+  private void disableTurnMotor() {
+    turnMotorOffline = true;
     turnMotor.setNeutralMode(NeutralMode.Coast);
-    turnMotor.disable();
+    turnMotor.set(ControlMode.PercentOutput, 0);
   }
 
   // Disables the drive motor in the case of too many CAN errors.
-  public void disableDriveMotor() {
+  private void disableDriveMotor() {
+    driveMotorOffline = true;
     driveMotor.setNeutralMode(NeutralMode.Coast);
-    driveMotor.disable();
+    driveMotor.set(ControlMode.PercentOutput, 0);
   }
 
-  private void configDriveMotor(boolean invertDrive) {
+  private void enableTurnMotor() {
+    turnMotorOffline = false;
+    turnMotorError = false;
+    configTurnMotor();
+  }
+
+  private void enableDriveMotor() {
+    driveMotorOffline = false;
+    driveMotorError = false;
+    configDriveMotor();
+  }
+
+  private void configDriveMotor() {
     int driveMotorErrors = 0;
 
     while (driveMotor.configFactoryDefault(30).value != 0) {
       driveMotorErrors++;
-      driveMotorOffline = driveMotorErrors > maxMotorErrors;
-      if (driveMotorOffline) {
+      driveMotorError = driveMotorErrors > maxMotorErrors;
+      if (driveMotorError) {
         break;
       }
     }
 
     while (driveMotor.configAllSettings(configCurrentLimit(), 30).value != 0) {
       driveMotorErrors++;
-      driveMotorOffline = driveMotorErrors > maxMotorErrors;
-      if (driveMotorOffline) {
+      driveMotorError = driveMotorErrors > maxMotorErrors;
+      if (driveMotorError) {
         break;
       }
     }
     while (driveMotor.setSelectedSensorPosition(0, 0, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorOffline = driveMotorErrors > maxMotorErrors;
-      if (driveMotorOffline) {
+      driveMotorError = driveMotorErrors > maxMotorErrors;
+      if (driveMotorError) {
         break;
       }
     }
@@ -171,42 +206,42 @@ class SwerveModule {
     double kI_drive = 0.0003;
     while (driveMotor.config_kP(0, 0.04, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorOffline = driveMotorErrors > maxMotorErrors;
-      if (driveMotorOffline) {
+      driveMotorError = driveMotorErrors > maxMotorErrors;
+      if (driveMotorError) {
         break;
       }
     }
     while (driveMotor.config_kI(0, kI_drive, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorOffline = driveMotorErrors > maxMotorErrors;
-      if (driveMotorOffline) {
+      driveMotorError = driveMotorErrors > maxMotorErrors;
+      if (driveMotorError) {
         break;
       }
     }
     while (driveMotor.config_kD(0, 1.0, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorOffline = driveMotorErrors > maxMotorErrors;
-      if (driveMotorOffline) {
+      driveMotorError = driveMotorErrors > maxMotorErrors;
+      if (driveMotorError) {
         break;
       }
     }
     while (driveMotor.config_kF(0, 0.0447, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorOffline = driveMotorErrors > maxMotorErrors;
-      if (driveMotorOffline) {
+      driveMotorError = driveMotorErrors > maxMotorErrors;
+      if (driveMotorError) {
         break;
       }
     }
     while (driveMotor.configMaxIntegralAccumulator(0, 0.8*1023.0/kI_drive, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorOffline = driveMotorErrors > maxMotorErrors;
-      if (driveMotorOffline) {
+      driveMotorError = driveMotorErrors > maxMotorErrors;
+      if (driveMotorError) {
         break;
       }
     }
 
     // Disables the motor in the case of too many CAN errors.
-    if (driveMotorOffline) {
+    if (driveMotorError) {
       disableDriveMotor();
     }
   }
@@ -216,23 +251,23 @@ class SwerveModule {
 
     while (turnMotor.configFactoryDefault(30).value != 0) {
       turnMotorErrors++;
-      turnMotorOffline = turnMotorErrors > maxMotorErrors;
-      if (turnMotorOffline) {
+      turnMotorError = turnMotorErrors > maxMotorErrors;
+      if (turnMotorError) {
         break;
       }
     }
 
     while (turnMotor.configAllSettings(configCurrentLimit(), 30).value != 0) {
       turnMotorErrors++;
-      turnMotorOffline = turnMotorErrors > maxMotorErrors;
-      if (turnMotorOffline) {
+      turnMotorError = turnMotorErrors > maxMotorErrors;
+      if (turnMotorError) {
         break;
       }
     }
     while (turnMotor.setSelectedSensorPosition(0, 0, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorOffline = turnMotorErrors > maxMotorErrors;
-      if (turnMotorOffline) {
+      turnMotorError = turnMotorErrors > maxMotorErrors;
+      if (turnMotorError) {
         break;
       }
     }
@@ -243,55 +278,55 @@ class SwerveModule {
     double kI_turn = 0.001;
     while (turnMotor.config_kP(0, 0.4, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorOffline = turnMotorErrors > maxMotorErrors;
-      if (turnMotorOffline) {
+      turnMotorError = turnMotorErrors > maxMotorErrors;
+      if (turnMotorError) {
         break;
       }
     }
     while (turnMotor.config_kI(0, kI_turn, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorOffline = turnMotorErrors > maxMotorErrors;
-      if (turnMotorOffline) {
+      turnMotorError = turnMotorErrors > maxMotorErrors;
+      if (turnMotorError) {
         break;
       }
     }
     while (turnMotor.config_kD(0, 3.0, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorOffline = turnMotorErrors > maxMotorErrors;
-      if (turnMotorOffline) {
+      turnMotorError = turnMotorErrors > maxMotorErrors;
+      if (turnMotorError) {
         break;
       }
     }
     while (turnMotor.configMotionAcceleration(100000, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorOffline = turnMotorErrors > maxMotorErrors;
-      if (turnMotorOffline) {
+      turnMotorError = turnMotorErrors > maxMotorErrors;
+      if (turnMotorError) {
         break;
       }
     }
     while (turnMotor.configMotionCruiseVelocity(200000, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorOffline = turnMotorErrors > maxMotorErrors;
-      if (turnMotorOffline) {
+      turnMotorError = turnMotorErrors > maxMotorErrors;
+      if (turnMotorError) {
         break;
       }
     }
     while (turnMotor.configAllowableClosedloopError(0, 20, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorOffline = turnMotorErrors > maxMotorErrors;
-      if (turnMotorOffline) {
+      turnMotorError = turnMotorErrors > maxMotorErrors;
+      if (turnMotorError) {
         break;
       }
     }
     while (turnMotor.configMaxIntegralAccumulator(0, 0.8*1023/kI_turn, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorOffline = turnMotorErrors > maxMotorErrors;
-      if (turnMotorOffline) {
+      turnMotorError = turnMotorErrors > maxMotorErrors;
+      if (turnMotorError) {
         break;
       }
     }
     
-    if (turnMotorOffline) {
+    if (turnMotorError) {
       disableTurnMotor();
     }
   }

@@ -38,7 +38,8 @@ class Drivetrain {
   private final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
   private final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
   private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
-  private final boolean moduleFailure;
+  public boolean moduleError; // Indicates whether there is at least 1 swerve module failure.
+  public boolean moduleOffline; // Indcates whether at least 1 module is offline.
 
   private final AHRS gyro = new AHRS();
   public boolean gyroFailure = false;
@@ -80,12 +81,11 @@ class Drivetrain {
     yController.setIntegratorRange(-I_driveMax, I_driveMax);
     turnController.setIntegratorRange(-I_turnMax, I_turnMax);
     turnController.enableContinuousInput(-Math.PI, Math.PI);
-    if (gyro.isConnected()) {
-      gyro.calibrate();
-      Timer.delay(2);
-      zeroGyro();
-    }
-    moduleFailure = frontLeftModule.driveMotorOffline || frontLeftModule.turnMotorOffline || frontRightModule.driveMotorOffline || frontRightModule.turnMotorOffline || backLeftModule.driveMotorOffline || backLeftModule.turnMotorOffline || backRightModule.driveMotorOffline || backRightModule.turnMotorOffline;
+
+    Timer.delay(2);
+    resetGyro();
+
+    updateModuleStatus();
   }
   
   // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
@@ -112,7 +112,7 @@ class Drivetrain {
   
   // Returns the angular position of the robot in degrees. The angular position is referenced to the starting angle of the robot. CCW is positive.
   public double getAngPos() {
-    if (gyro.isConnected() && !gyroFailure) {
+    if (!gyroFailure) {
       return -gyro.getYaw();
     } else {
       gyroFailure = true;
@@ -159,7 +159,7 @@ class Drivetrain {
   
   // Tracks the path. Should be called each period until the endpoint is reached.
   public void followPath() {
-    if (!gyroFailure && !moduleFailure) {
+    if (!gyroFailure && !moduleError && !moduleOffline) {
       updateOdometry();
       PathPlannerState currentGoal = (PathPlannerState) path.sample(timer.get());
       ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
@@ -174,7 +174,7 @@ class Drivetrain {
   
   // Tells whether the robot has reached the endpoint of the path, within the specified tolerance.
   public boolean atEndpoint() {
-    if (!gyroFailure && !moduleFailure) {
+    if (!gyroFailure && !moduleError && !moduleOffline) {
       PathPlannerState endState = path.getEndState();
       return Math.abs(getAngPos() - endState.poseMeters.getRotation().getDegrees()) < pathAngTol 
       && Math.abs(getXPos() - endState.poseMeters.getX()) < pathXTol 
@@ -197,31 +197,36 @@ class Drivetrain {
     maxPathAcc = desiredMaxAcc;
   }
 
-  public void zeroGyro() {
+  public void resetGyro() {
     gyroFailure = !gyro.isConnected();
     if (gyro.isConnected()) {
       gyro.zeroYaw();
     }
   }
 
-  public void disableFL() {
-    frontLeftModule.disableDriveMotor();
-    frontLeftModule.disableTurnMotor();
+  public void toggleFL() {
+    frontLeftModule.toggleModule();
+    updateModuleStatus();
   }
 
-  public void disableFR() {
-    frontRightModule.disableDriveMotor();
-    frontRightModule.disableTurnMotor();
+  public void toggleFR() {
+    frontRightModule.toggleModule();
+    updateModuleStatus();
   }
 
-  public void disableBL() {
-    backLeftModule.disableDriveMotor();
-    backLeftModule.disableTurnMotor();
+  public void toggleBL() {
+    backLeftModule.toggleModule();
+    updateModuleStatus();
   }
 
-  public void disableBR() {
-    backRightModule.disableDriveMotor();
-    backRightModule.disableTurnMotor();
+  public void toggleBR() {
+    backRightModule.toggleModule();
+    updateModuleStatus();
+  }
+
+  private void updateModuleStatus() {
+    moduleError = frontLeftModule.moduleError || frontRightModule.moduleError || backLeftModule.moduleError || backRightModule.moduleError;
+    moduleOffline = frontLeftModule.moduleOffline || frontRightModule.moduleOffline || backLeftModule.moduleOffline || backRightModule.moduleOffline;
   }
   
   // Publishes all values to Smart Dashboard.
@@ -251,5 +256,16 @@ class Drivetrain {
     SmartDashboard.putNumber("BR pos", backRightModule.getPos());
     SmartDashboard.putNumber("BR vel", backRightModule.getVel());
     SmartDashboard.putNumber("BR encoder", backRightModule.getWheelEncoder());
+    SmartDashboard.putBoolean("gyroFailure", gyroFailure);
+    SmartDashboard.putBoolean("moduleErrorFL", frontLeftModule.moduleError);
+    SmartDashboard.putBoolean("moduleErrorFR", frontRightModule.moduleError);
+    SmartDashboard.putBoolean("moduleErrorBL", backLeftModule.moduleError);
+    SmartDashboard.putBoolean("moduleErrorBR", backRightModule.moduleError);
+    SmartDashboard.putBoolean("moduleError", moduleError);
+    SmartDashboard.putBoolean("moduleOfflineFL", frontLeftModule.moduleOffline);
+    SmartDashboard.putBoolean("moduleOfflineFR", frontRightModule.moduleOffline);
+    SmartDashboard.putBoolean("moduleOfflineBL", backLeftModule.moduleOffline);
+    SmartDashboard.putBoolean("moduleOfflineBR", backRightModule.moduleOffline);
+    SmartDashboard.putBoolean("moduleOffline", moduleOffline);
   }
 }
