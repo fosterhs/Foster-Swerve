@@ -14,7 +14,7 @@ class SwerveModule {
   private static final double falconEncoderRes = 2048.0;
   private static final double turnGearRatio = 150.0/7.0;
   private static final double driveGearRatio = 57.0/7.0;
-  private static final double currentLimit = 40.0;
+  private static final double currentLimit = 40.0; // Single motor current limit in amps.
 
   private final AnalogEncoder wheelEncoder;
   private final WPI_TalonFX driveMotor;
@@ -22,13 +22,13 @@ class SwerveModule {
   private final boolean invertDrive;
 
   // Motor error code tracking variables.
-  private final int maxMotorErrors = 20;
-  public boolean driveMotorError = false;
-  public boolean turnMotorError = false;
-  public boolean moduleError = false;
-  public boolean driveMotorOffline = false;
-  public boolean turnMotorOffline = false;
-  public boolean moduleOffline = false;
+  private final int maxMotorErrors = 20; // The most times a configuration command can be unsuccesfully sent to a motor before a failure is declared and the motor is disabled. 
+  public boolean driveMotorFailure = false; // Whether the drive motor has failed to configure correctly.
+  public boolean turnMotorFailure = false; // Whether the turn motor has failed to configure correctly.
+  public boolean moduleFailure = false; // Whether either the drive motor or the turn motor has failed to configure correctly.
+  public boolean driveMotorOffline = false; // Whether the drive motor is offline and coasting.
+  public boolean turnMotorOffline = false; // Whether the turn motor is offline and coasting.
+  public boolean moduleOffline = false; // Whether both the drive motor and the turn motor are offline and coasting.
 
   public SwerveModule(int turnID, int driveID, int encoderID, boolean _invertDrive) {
     wheelEncoder = new AnalogEncoder(encoderID);
@@ -41,7 +41,7 @@ class SwerveModule {
     updateModuleStatus();
   }
 
-  // Sets the swerve module to the given state.
+  // Sets the swerve module to the given state (velocity and angle).
   public void setState(SwerveModuleState desiredState) {
     double goalAngleFor = desiredState.angle.getDegrees();
     double goalAngleRev = goalAngleFor > 0.0 ? goalAngleFor - 180.0 : goalAngleFor + 180.0; // Instead of rotating to the input angle, the swerve module can rotate to a position 180 degrees off and reverse the input velocity to achieve the same result.
@@ -91,7 +91,7 @@ class SwerveModule {
 
   // Returns the velocity of the wheel. Unit: meters per second
   public double getVel() {
-    if (!turnMotorError && !moduleOffline) {
+    if (!driveMotorFailure && !moduleOffline) {
       return driveMotor.getSelectedSensorVelocity(0)*10.0*wheelCirc/(falconEncoderRes*driveGearRatio);
     } else {
       return 0;
@@ -100,7 +100,7 @@ class SwerveModule {
 
   // Returns total distance the wheel has rotated. Unit: meters
   public double getPos() {
-    if (!turnMotorError && !moduleOffline) {
+    if (!driveMotorFailure && !moduleOffline) {
       return driveMotor.getSelectedSensorPosition(0)*wheelCirc/(falconEncoderRes*driveGearRatio);
     } else {
       return 0;
@@ -109,32 +109,33 @@ class SwerveModule {
   
   // Returns the angle of the wheel in degrees. 0 degrees corresponds to facing to the front (+x). 90 degrees in facing left (+y). 
   public double getAngle() {
-    if (!turnMotorError && !moduleOffline) {
+    if (!turnMotorFailure && !moduleOffline) {
       return turnMotor.getSelectedSensorPosition(0)*360.0/(falconEncoderRes*turnGearRatio);
     } else {
       return 0;
     }
   }
-
+  
+  // Returns the raw value of the wheel encoder. Range: 0-360 degrees.
   public double getWheelEncoder() {
     return wheelEncoder.getAbsolutePosition()*360;
   }
   
   // Sets the velocity of the module. Units: meters per second
   private void setVel(double vel) {
-    if (!driveMotorError && !moduleOffline) {
+    if (!driveMotorFailure && !moduleOffline) {
       driveMotor.set(ControlMode.Velocity, vel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
     }
   }
   
   // Sets the angle of the module. Units: degrees
   private void setAngle(double angle) {
-    if (!turnMotorError && !moduleOffline) {
+    if (!turnMotorFailure && !moduleOffline) {
       turnMotor.set(ControlMode.MotionMagic, angle*falconEncoderRes*turnGearRatio/360.0);
     }
   }
 
-  // Toggles whether the module is enabled or disabled. Returns true if enabled.
+  // Toggles whether the module is enabled or disabled. Used in the case of an engine failure.
   public void toggleModule() {
     if (moduleOffline) {
       enableDriveMotor();
@@ -146,59 +147,61 @@ class SwerveModule {
     updateModuleStatus();
   }
 
+  // Updates moduleError and moduleOffline to reflect the current status of the swerve module
   private void updateModuleStatus() {
     moduleOffline = turnMotorOffline && driveMotorOffline;
-    moduleError = turnMotorError || driveMotorError;
+    moduleFailure = turnMotorFailure || driveMotorFailure;
   }
 
-  // Disables the turn motor in the case of too many CAN errors.
+  // The following 2 functions disable the motor in the case of too many CAN errors, or if the driver chooses to disable the module in the case of an engine or mechanical failure.
   private void disableTurnMotor() {
     turnMotorOffline = true;
     turnMotor.setNeutralMode(NeutralMode.Coast);
     turnMotor.set(ControlMode.PercentOutput, 0);
   }
 
-  // Disables the drive motor in the case of too many CAN errors.
   private void disableDriveMotor() {
     driveMotorOffline = true;
     driveMotor.setNeutralMode(NeutralMode.Coast);
     driveMotor.set(ControlMode.PercentOutput, 0);
   }
 
+  // The following 2 functions re-enable the motor. These should be called if the motors were previously disabled by the driver, or failed to properly initialize at robot start-up. Motors will automatically be re-disabled if they are not able to be configured properly.
   private void enableTurnMotor() {
     turnMotorOffline = false;
-    turnMotorError = false;
+    turnMotorFailure = false;
     configTurnMotor();
   }
 
   private void enableDriveMotor() {
     driveMotorOffline = false;
-    driveMotorError = false;
+    driveMotorFailure = false;
     configDriveMotor();
   }
 
+  // The following 2 functions configure the motor upon startup. They set current limits, PID controller constants, etc. If too many errors are produced during configuration, the motor will automatically be disabled and set to coast.
   private void configDriveMotor() {
     int driveMotorErrors = 0;
 
     while (driveMotor.configFactoryDefault(30).value != 0) {
       driveMotorErrors++;
-      driveMotorError = driveMotorErrors > maxMotorErrors;
-      if (driveMotorError) {
+      driveMotorFailure = driveMotorErrors > maxMotorErrors;
+      if (driveMotorFailure) {
         break;
       }
     }
 
     while (driveMotor.configAllSettings(configCurrentLimit(), 30).value != 0) {
       driveMotorErrors++;
-      driveMotorError = driveMotorErrors > maxMotorErrors;
-      if (driveMotorError) {
+      driveMotorFailure = driveMotorErrors > maxMotorErrors;
+      if (driveMotorFailure) {
         break;
       }
     }
     while (driveMotor.setSelectedSensorPosition(0, 0, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorError = driveMotorErrors > maxMotorErrors;
-      if (driveMotorError) {
+      driveMotorFailure = driveMotorErrors > maxMotorErrors;
+      if (driveMotorFailure) {
         break;
       }
     }
@@ -209,42 +212,41 @@ class SwerveModule {
     double kI_drive = 0.0003;
     while (driveMotor.config_kP(0, 0.04, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorError = driveMotorErrors > maxMotorErrors;
-      if (driveMotorError) {
+      driveMotorFailure = driveMotorErrors > maxMotorErrors;
+      if (driveMotorFailure) {
         break;
       }
     }
     while (driveMotor.config_kI(0, kI_drive, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorError = driveMotorErrors > maxMotorErrors;
-      if (driveMotorError) {
+      driveMotorFailure = driveMotorErrors > maxMotorErrors;
+      if (driveMotorFailure) {
         break;
       }
     }
     while (driveMotor.config_kD(0, 1.0, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorError = driveMotorErrors > maxMotorErrors;
-      if (driveMotorError) {
+      driveMotorFailure = driveMotorErrors > maxMotorErrors;
+      if (driveMotorFailure) {
         break;
       }
     }
     while (driveMotor.config_kF(0, 0.0447, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorError = driveMotorErrors > maxMotorErrors;
-      if (driveMotorError) {
+      driveMotorFailure = driveMotorErrors > maxMotorErrors;
+      if (driveMotorFailure) {
         break;
       }
     }
     while (driveMotor.configMaxIntegralAccumulator(0, 0.8*1023.0/kI_drive, 30).value != 0) {
       driveMotorErrors++;
-      driveMotorError = driveMotorErrors > maxMotorErrors;
-      if (driveMotorError) {
+      driveMotorFailure = driveMotorErrors > maxMotorErrors;
+      if (driveMotorFailure) {
         break;
       }
     }
 
-    // Disables the motor in the case of too many CAN errors.
-    if (driveMotorError) {
+    if (driveMotorFailure) {
       disableDriveMotor();
     }
   }
@@ -254,23 +256,23 @@ class SwerveModule {
 
     while (turnMotor.configFactoryDefault(30).value != 0) {
       turnMotorErrors++;
-      turnMotorError = turnMotorErrors > maxMotorErrors;
-      if (turnMotorError) {
+      turnMotorFailure = turnMotorErrors > maxMotorErrors;
+      if (turnMotorFailure) {
         break;
       }
     }
 
     while (turnMotor.configAllSettings(configCurrentLimit(), 30).value != 0) {
       turnMotorErrors++;
-      turnMotorError = turnMotorErrors > maxMotorErrors;
-      if (turnMotorError) {
+      turnMotorFailure = turnMotorErrors > maxMotorErrors;
+      if (turnMotorFailure) {
         break;
       }
     }
     while (turnMotor.setSelectedSensorPosition(0, 0, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorError = turnMotorErrors > maxMotorErrors;
-      if (turnMotorError) {
+      turnMotorFailure = turnMotorErrors > maxMotorErrors;
+      if (turnMotorFailure) {
         break;
       }
     }
@@ -281,60 +283,60 @@ class SwerveModule {
     double kI_turn = 0.001;
     while (turnMotor.config_kP(0, 0.4, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorError = turnMotorErrors > maxMotorErrors;
-      if (turnMotorError) {
+      turnMotorFailure = turnMotorErrors > maxMotorErrors;
+      if (turnMotorFailure) {
         break;
       }
     }
     while (turnMotor.config_kI(0, kI_turn, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorError = turnMotorErrors > maxMotorErrors;
-      if (turnMotorError) {
+      turnMotorFailure = turnMotorErrors > maxMotorErrors;
+      if (turnMotorFailure) {
         break;
       }
     }
     while (turnMotor.config_kD(0, 3.0, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorError = turnMotorErrors > maxMotorErrors;
-      if (turnMotorError) {
+      turnMotorFailure = turnMotorErrors > maxMotorErrors;
+      if (turnMotorFailure) {
         break;
       }
     }
     while (turnMotor.configMotionAcceleration(100000, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorError = turnMotorErrors > maxMotorErrors;
-      if (turnMotorError) {
+      turnMotorFailure = turnMotorErrors > maxMotorErrors;
+      if (turnMotorFailure) {
         break;
       }
     }
     while (turnMotor.configMotionCruiseVelocity(200000, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorError = turnMotorErrors > maxMotorErrors;
-      if (turnMotorError) {
+      turnMotorFailure = turnMotorErrors > maxMotorErrors;
+      if (turnMotorFailure) {
         break;
       }
     }
     while (turnMotor.configAllowableClosedloopError(0, 20, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorError = turnMotorErrors > maxMotorErrors;
-      if (turnMotorError) {
+      turnMotorFailure = turnMotorErrors > maxMotorErrors;
+      if (turnMotorFailure) {
         break;
       }
     }
     while (turnMotor.configMaxIntegralAccumulator(0, 0.8*1023/kI_turn, 30).value != 0) {
       turnMotorErrors++;
-      turnMotorError = turnMotorErrors > maxMotorErrors;
-      if (turnMotorError) {
+      turnMotorFailure = turnMotorErrors > maxMotorErrors;
+      if (turnMotorFailure) {
         break;
       }
     }
     
-    if (turnMotorError) {
+    if (turnMotorFailure) {
       disableTurnMotor();
     }
   }
 
-  // Creates a configuration object that limits the current draw for each motor to 40 amps
+  // Creates a configuration object that limits the current draw for each motor to 40 amps. Used to configure both motors.
   private TalonFXConfiguration configCurrentLimit() {
     TalonFXConfiguration config = new TalonFXConfiguration();
     config.supplyCurrLimit.enable = true;

@@ -33,6 +33,7 @@ class Drivetrain {
   private static final Translation2d backLeftPos = new Translation2d(-0.225, 0.225);
   private final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
 
+  // Initializes each swerve module object.
   private final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false); 
   private final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true);
   private final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
@@ -41,20 +42,23 @@ class Drivetrain {
   public boolean moduleError; // Indicates whether there is at least 1 swerve module failure.
   public boolean moduleOffline; // Indcates whether at least 1 module is offline.
 
+  // Gyroscope variables
   private final AHRS gyro = new AHRS();
-  public boolean gyroFailure = false;
+  public boolean gyroFailure = false; // Indicates whether the gyro has lost connection at any point after a yaw-reset.
   
-  // Path Following
+  // Path following parameters
+  private final double pathXTol = 0.03; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
+  private final double pathYTol = 0.03; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
+  private final double pathAngTol = 3.0; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: degrees
+  private double maxPathVel = 0.8; // Maximum robot velocity while following a path. Use the set function to modify this prior to following a path.
+  private double maxPathAcc = 0.4; // Maximum robot acceleration while following a path. Use the set function to modify this prior to following a path.
+  private boolean pathReversal = false; // Whether the path should be followed in forwards or reverse. Use the set function to modify this prior to following a path.
+
+  // Path following
   private PathPlannerTrajectory path;
   private final Timer timer = new Timer();
-  private final double pathXTol = 0.03;
-  private final double pathYTol = 0.03;
-  private final double pathAngTol = 3.0;
-  private double maxPathVel = 0.8;
-  private double maxPathAcc = 0.4;
-  private boolean pathReversal = false;
  
-  // Autonomous Swerve Controller Parameters
+  // Autonomous swerve controller parameters. Hard code these values.
   private final double kP_drive = 1;
   private final double kI_drive = 0;
   private final double kD_drive = 0;
@@ -63,12 +67,14 @@ class Drivetrain {
   private final double kI_turn = 0;
   private final double kD_turn = 0;
   private final double I_turnMax = 4;
+
+  // Autonomous swerve controller
   private final PIDController xController = new PIDController(kP_drive, kI_drive, kD_drive);
   private final PIDController yController = new PIDController(kP_drive, kI_drive, kD_drive);
   private final ProfiledPIDController turnController = new ProfiledPIDController(kP_turn, kI_turn, kD_turn, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel));
   private final HolonomicDriveController swerveController = new HolonomicDriveController(xController, yController, turnController); // Defining the PID controllers and their constants for trajectory tracking.
   
-  // Dashboard variables
+  // These variables are updated each period and passed to SmartDashboard.
   private double xVel = 0;
   private double yVel = 0;
   private double angVel = 0;
@@ -77,15 +83,16 @@ class Drivetrain {
   private double pathAngPos = 0;
 
   public Drivetrain() {
+    // Sets autonomous swerve controller parameters
     xController.setIntegratorRange(-I_driveMax, I_driveMax);
     yController.setIntegratorRange(-I_driveMax, I_driveMax);
     turnController.setIntegratorRange(-I_turnMax, I_turnMax);
     turnController.enableContinuousInput(-Math.PI, Math.PI);
 
-    Timer.delay(2);
-    resetGyro();
+    Timer.delay(2); // Delay to give the gyro time for start-up calibration.
+    resetGyro(); // Sets the gyro angle to 0 based on the current heading of the robot.
 
-    updateModuleStatus();
+    updateModuleStatus(); // Checks whether any modules are offline or did not start up properly.
   }
   
   // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
@@ -94,51 +101,18 @@ class Drivetrain {
     yVel = _yVel;
     angVel = _angVel;
     SwerveModuleState[] moduleStates;
-    if (fieldRelative && !gyroFailure) {
+    if (fieldRelative && !gyroFailure) { // Field oriented control
       moduleStates = kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVel, yVel, angVel, Rotation2d.fromDegrees(getAngPos())));
-    } else {
+    } else { // Robot oriented control
       moduleStates = kinematics.toSwerveModuleStates(new ChassisSpeeds(xVel, yVel, angVel));
     }
-    SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, maxVel);
+    SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, maxVel); // Makes sure the calculated velocities are attainable. If they are not, all modules velocities are scaled back.
+
+    // Sets the module angles and velocities.
     frontLeftModule.setState(moduleStates[0]);
     frontRightModule.setState(moduleStates[1]);
     backRightModule.setState(moduleStates[2]);
     backLeftModule.setState(moduleStates[3]);
-  }
-
-  public void updateOdometry() {
-    odometry.update(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
-  }
-  
-  // Returns the angular position of the robot in degrees. The angular position is referenced to the starting angle of the robot. CCW is positive.
-  public double getAngPos() {
-    if (!gyroFailure) {
-      return -gyro.getYaw();
-    } else {
-      gyroFailure = true;
-      return 0;
-    }
-  }
-  
-  // Returns the odometry calculated x position of the robot in meters.
-  public double getXPos() {
-    return odometry.getPoseMeters().getX();
-  }
-
-  // Returns the odometry calculated y position of the robot in meters.
-  public double getYPos() {
-    return odometry.getPoseMeters().getY();
-  }
- 
-  // Resets the robot's odometry pose to x=0, y=0, and heading=0.
-  public void resetOdometry() {
-    odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, new Pose2d());
-  }
-
-  // Resets the robot's odometry to the start point of the path loaded into loadPath()
-  public void resetOdometryToPathStart() {
-    PathPlannerState startingState = path.getInitialState();
-    odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
   }
   
   // Loads the path. All paths should be loaded during robotInit() since this call is computationally expensive.
@@ -146,13 +120,26 @@ class Drivetrain {
     path = PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal); // Uploading the PathPlanner trajectory to the program. The maximum acceleration and velocity can be set to suitable values for auto.
   }
 
+  // Path following 3 functions should be adjusted prior to calling loadPath(). These functions define the parameters of the path follower. They will default to reasonable pre-defined values if these functions are not called.
+  public void setMaxPathVel(double desiredMaxVel) {
+    maxPathVel = desiredMaxVel;
+  }
+
+  public void setPathReversal(boolean desiredReversal) {
+    pathReversal = desiredReversal;
+  }
+
+  public void setMaxPathAcc(double desiredMaxAcc) {
+    maxPathAcc = desiredMaxAcc;
+  }
+
   // Should be called immediately before the user would like the robot to begin tracking the path. If resetOdometry == true, this call sets the field position of the robot to the starting point of the path.
-  public void resetPathController(boolean resetOdometry) {
+  public void resetPathController(boolean resetOdometryToPathStart) {
     xController.reset();
     yController.reset();
     turnController.reset(getAngPos());
     timer.restart();
-    if (resetOdometry) {
+    if (resetOdometryToPathStart) {
       resetOdometryToPathStart();
     }
   }
@@ -183,20 +170,44 @@ class Drivetrain {
       return false;
     }
   }
+
+  // Updates the position of the robot on the field. Should be called each period to remain accurate. Tends to noticably drift for periods of time >15 sec.
+  public void updateOdometry() {
+    odometry.update(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
+  }
   
-  // Path following parameters should be adjusted using these functions prior to calling loadPath().
-  public void setMaxPathVel(double desiredMaxVel) {
-    maxPathVel = desiredMaxVel;
+  // Returns the angular position of the robot in degrees. The angular position is referenced to the starting angle of the robot. CCW is positive. Will return 0 in the case of a gyro failure.
+  public double getAngPos() {
+    if (!gyroFailure) {
+      return -gyro.getYaw();
+    } else {
+      gyroFailure = true;
+      return 0;
+    }
+  }
+  
+  // Returns the odometry calculated x position of the robot in meters.
+  public double getXPos() {
+    return odometry.getPoseMeters().getX();
   }
 
-  public void setPathReversal(boolean desiredReversal) {
-    pathReversal = desiredReversal;
+  // Returns the odometry calculated y position of the robot in meters.
+  public double getYPos() {
+    return odometry.getPoseMeters().getY();
   }
 
-  public void setMaxPathAcc(double desiredMaxAcc) {
-    maxPathAcc = desiredMaxAcc;
+  // Resets the robot's odometry to the start point of the path loaded into loadPath()
+  public void resetOdometryToPathStart() {
+    PathPlannerState startingState = path.getInitialState();
+    odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
   }
 
+  // Resets the robot's odometry pose to x=0, y=0, and heading=0.
+  public void resetOdometry() {
+    odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, new Pose2d());
+  }
+  
+  // Resets the gyro to 0. The current angle of the robot is now defined as 0 degrees. Also clears gyroFailures if a connection is re-established
   public void resetGyro() {
     gyroFailure = !gyro.isConnected();
     if (gyro.isConnected()) {
@@ -204,6 +215,7 @@ class Drivetrain {
     }
   }
 
+  // The following 4 functions allow the driver to toggle whether each of the swerve modules is on. Useful in the case of an engine failure in match. 
   public void toggleFL() {
     frontLeftModule.toggleModule();
     updateModuleStatus();
@@ -223,9 +235,10 @@ class Drivetrain {
     backRightModule.toggleModule();
     updateModuleStatus();
   }
-
+  
+  // Updates moduleError and moduleOffline to reflect the current status of the swerve modules
   private void updateModuleStatus() {
-    moduleError = frontLeftModule.moduleError || frontRightModule.moduleError || backLeftModule.moduleError || backRightModule.moduleError;
+    moduleError = frontLeftModule.moduleFailure || frontRightModule.moduleFailure || backLeftModule.moduleFailure || backRightModule.moduleFailure;
     moduleOffline = frontLeftModule.moduleOffline || frontRightModule.moduleOffline || backLeftModule.moduleOffline || backRightModule.moduleOffline;
   }
   
@@ -257,10 +270,10 @@ class Drivetrain {
     SmartDashboard.putNumber("BR vel", backRightModule.getVel());
     SmartDashboard.putNumber("BR encoder", backRightModule.getWheelEncoder());
     SmartDashboard.putBoolean("gyroFailure", gyroFailure);
-    SmartDashboard.putBoolean("moduleErrorFL", frontLeftModule.moduleError);
-    SmartDashboard.putBoolean("moduleErrorFR", frontRightModule.moduleError);
-    SmartDashboard.putBoolean("moduleErrorBL", backLeftModule.moduleError);
-    SmartDashboard.putBoolean("moduleErrorBR", backRightModule.moduleError);
+    SmartDashboard.putBoolean("moduleErrorFL", frontLeftModule.moduleFailure);
+    SmartDashboard.putBoolean("moduleErrorFR", frontRightModule.moduleFailure);
+    SmartDashboard.putBoolean("moduleErrorBL", backLeftModule.moduleFailure);
+    SmartDashboard.putBoolean("moduleErrorBR", backRightModule.moduleFailure);
     SmartDashboard.putBoolean("moduleError", moduleError);
     SmartDashboard.putBoolean("moduleOfflineFL", frontLeftModule.moduleOffline);
     SmartDashboard.putBoolean("moduleOfflineFR", frontRightModule.moduleOffline);
