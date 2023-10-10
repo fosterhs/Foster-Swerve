@@ -38,7 +38,7 @@ class Drivetrain {
   private final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true);
   private final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true);
   private final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false);
-  private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
+  private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getSMP(), frontRightModule.getSMP(), backRightModule.getSMP(), backLeftModule.getSMP()});
   public boolean moduleError; // Indicates whether there is at least 1 swerve module failure.
   public boolean moduleOffline; // Indcates whether at least 1 module is offline.
 
@@ -109,10 +109,10 @@ class Drivetrain {
     SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, maxVel); // Makes sure the calculated velocities are attainable. If they are not, all modules velocities are scaled back.
 
     // Sets the module angles and velocities.
-    frontLeftModule.setState(moduleStates[0]);
-    frontRightModule.setState(moduleStates[1]);
-    backRightModule.setState(moduleStates[2]);
-    backLeftModule.setState(moduleStates[3]);
+    frontLeftModule.setSMS(moduleStates[0]);
+    frontRightModule.setSMS(moduleStates[1]);
+    backRightModule.setSMS(moduleStates[2]);
+    backLeftModule.setSMS(moduleStates[3]);
   }
   
   // Loads the path. All paths should be loaded during robotInit() since this call is computationally expensive.
@@ -173,7 +173,7 @@ class Drivetrain {
 
   // Updates the position of the robot on the field. Should be called each period to remain accurate. Tends to noticably drift for periods of time >15 sec.
   public void updateOdometry() {
-    odometry.update(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()});
+    odometry.update(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getSMP(), frontRightModule.getSMP(), backRightModule.getSMP(), backLeftModule.getSMP()});
   }
   
   // Returns the angular position of the robot in degrees. The angular position is referenced to the starting angle of the robot. CCW is positive. Will return 0 in the case of a gyro failure.
@@ -199,12 +199,12 @@ class Drivetrain {
   // Resets the robot's odometry to the start point of the path loaded into loadPath()
   public void resetOdometryToPathStart() {
     PathPlannerState startingState = path.getInitialState();
-    odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, startingState.poseMeters);
+    odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getSMP(), frontRightModule.getSMP(), backRightModule.getSMP(), backLeftModule.getSMP()}, startingState.poseMeters);
   }
 
   // Resets the robot's odometry pose to x=0, y=0, and heading=0.
   public void resetOdometry() {
-    odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getPosition(), frontRightModule.getPosition(), backRightModule.getPosition(), backLeftModule.getPosition()}, new Pose2d());
+    odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getSMP(), frontRightModule.getSMP(), backRightModule.getSMP(), backLeftModule.getSMP()}, new Pose2d());
   }
   
   // Resets the gyro to 0. The current angle of the robot is now defined as 0 degrees. Also clears gyroFailures if a connection is re-established

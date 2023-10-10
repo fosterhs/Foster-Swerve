@@ -42,7 +42,7 @@ class SwerveModule {
   }
 
   // Sets the swerve module to the given state (velocity and angle).
-  public void setState(SwerveModuleState desiredState) {
+  public void setSMS(SwerveModuleState desiredState) {
     double goalAngleFor = desiredState.angle.getDegrees();
     double goalAngleRev = goalAngleFor > 0.0 ? goalAngleFor - 180.0 : goalAngleFor + 180.0; // Instead of rotating to the input angle, the swerve module can rotate to a position 180 degrees off and reverse the input velocity to achieve the same result.
     double currAngle = getAngle();
@@ -80,12 +80,12 @@ class SwerveModule {
   }
   
   // Returns the velocity and angle of the module.
-  public SwerveModuleState getState() {
+  public SwerveModuleState getSMS() {
     return new SwerveModuleState(getVel(), Rotation2d.fromDegrees(getAngle()));
   }
   
   // Returns the postion and angle of the module.
-  public SwerveModulePosition getPosition() {
+  public SwerveModulePosition getSMP() {
     return new SwerveModulePosition(getPos(), Rotation2d.fromDegrees(getAngle()));
   }
 
