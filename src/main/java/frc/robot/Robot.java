@@ -40,13 +40,12 @@ public class Robot extends TimedRobot {
     swerve.loadPath("Test Path", true); // Loads the path. Should be called prior to following the path. resetOdometry causes the robot's position to be set to the starting point of the path.
     
     // Helps prevent loop overruns when the robot is first enabled. This call causes the robot to initialize code in other parts of the program, so it does not need to be initialized during autonomousInit() or teleopInit().
+    swerve.resetPathController(true);
     swerve.followPath();
     swerve.atEndpoint();
-    swerve.resetPathController(true);
     swerve.resetOdometry();
-    swerve.updateDash();
     swerve.drive(0.1, 0, 0, false);
-
+    swerve.updateDash();
   }
 
   public void robotPeriodic() {
