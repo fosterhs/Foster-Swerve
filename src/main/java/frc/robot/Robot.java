@@ -21,7 +21,11 @@ public class Robot extends TimedRobot {
   }
 
   public void autonomousPeriodic() {
-    swerve.followPath(); // Follows the path that was previously loaded from Path Planner using loadPath().
+    if (!swerve.atEndpoint()) {
+      swerve.followPath(); // Follows the path that was previously loaded from Path Planner using loadPath().
+    } else {
+      swerve.drive(0,0,0,false);
+    }
   }
 
   public void teleopInit() {}
@@ -70,6 +74,11 @@ public class Robot extends TimedRobot {
     // Re-zeros the angle reading of the gyro to the current angle of the robot. Should be called if the gyroscope readings are no longer well correlated with the field.
     if (stick.getRawButtonPressed(11)) {
       swerve.resetGyro();
+    }
+
+    // Toggles the gyro on/off. Useful in the case of a gyro failure. A disabled gyro leads to loss of auto and field-oriented control. 
+    if (stick.getRawButtonPressed(12)) {
+      swerve.toggleGyro();
     }
   }
 
