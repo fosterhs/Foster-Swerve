@@ -24,7 +24,7 @@ public class Robot extends TimedRobot {
     if (!swerve.atEndpoint()) {
       swerve.followPath(); // Follows the path that was previously loaded from Path Planner using loadPath().
     } else {
-      swerve.drive(0,0,0,false);
+      swerve.drive(0.0, 0.0, 0.0, false);
     }
   }
 
@@ -49,7 +49,7 @@ public class Robot extends TimedRobot {
     swerve.resetPathController(true);
     swerve.followPath();
     swerve.atEndpoint();
-    swerve.drive(0.1, 0, 0, false);
+    swerve.drive(0.1, 0.0, 0.0, false);
     swerve.resetOdometry();
     swerve.updateDash();
   }

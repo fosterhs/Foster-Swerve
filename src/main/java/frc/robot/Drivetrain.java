@@ -31,7 +31,7 @@ class Drivetrain {
   private static final Translation2d frontRightPos = new Translation2d(0.225, -0.225); 
   private static final Translation2d backRightPos = new Translation2d(-0.225, -0.225);
   private static final Translation2d backLeftPos = new Translation2d(-0.225, 0.225);
-  private SwerveDriveKinematics kinematics = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
+  private final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
 
   // Initializes each swerve module object.
   public final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false, 113.4); 
@@ -39,8 +39,8 @@ class Drivetrain {
   public final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true, 74.2);
   public final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false, 141.1);
   private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getSMP(), frontRightModule.getSMP(), backRightModule.getSMP(), backLeftModule.getSMP()});
-  public boolean moduleError; // Indicates whether there is at least 1 swerve module failure.
-  public boolean moduleOffline; // Indcates whether at least 1 module is offline.
+  public boolean moduleError = false; // Indicates whether there is at least 1 swerve module failure.
+  public boolean moduleOffline = false; // Indcates whether at least 1 module is offline.
 
   // Gyroscope variables
   private final AHRS gyro = new AHRS();
@@ -60,13 +60,13 @@ class Drivetrain {
   private final Timer timer = new Timer();
  
   // Autonomous swerve controller parameters. Hard code these values.
-  private final double kP_drive = 10;
-  private final double kI_drive = 0;
-  private final double kD_drive = 0;
+  private final double kP_drive = 10.0;
+  private final double kI_drive = 0.0;
+  private final double kD_drive = 0.0;
   private final double I_driveMax = 0.6;
-  private final double kP_turn = 5;
-  private final double kI_turn = 0;
-  private final double kD_turn = 0;
+  private final double kP_turn = 5.0;
+  private final double kI_turn = 0.0;
+  private final double kD_turn = 0.0;
   private final double I_turnMax = 0.6;
 
   // Autonomous swerve controller
@@ -76,12 +76,12 @@ class Drivetrain {
   private final HolonomicDriveController swerveController = new HolonomicDriveController(xController, yController, turnController); // Defining the PID controllers and their constants for trajectory tracking.
   
   // These variables are updated each period and passed to SmartDashboard.
-  private double xVel = 0;
-  private double yVel = 0;
-  private double angVel = 0;
-  private double pathXPos = 0;
-  private double pathYPos = 0;
-  private double pathAngPos = 0;
+  private double xVel = 0.0;
+  private double yVel = 0.0;
+  private double angVel = 0.0;
+  private double pathXPos = 0.0;
+  private double pathYPos = 0.0;
+  private double pathAngPos = 0.0;
 
   public Drivetrain() {
     // Sets autonomous swerve controller parameters
