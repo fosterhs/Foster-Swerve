@@ -38,7 +38,8 @@ class SwerveModule {
 
     configDriveMotor();
     configTurnMotor(true);
-    updateModuleStatus();
+    moduleDisabled = driveMotorFailure && turnMotorFailure;
+    moduleFailure = turnMotorFailure || driveMotorFailure;
   }
 
   // Sets the swerve module to the given state (velocity and angle).
@@ -155,11 +156,6 @@ class SwerveModule {
       disableDriveMotor();
       disableTurnMotor();
     }
-    updateModuleStatus();
-  }
-
-  // Updates moduleError and moduleOffline to reflect the current status of the swerve module
-  private void updateModuleStatus() {
     moduleFailure = turnMotorFailure || driveMotorFailure;
   }
 

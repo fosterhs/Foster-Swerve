@@ -92,7 +92,7 @@ class Drivetrain {
 
     Timer.delay(2); // Delay to give the gyro time for start-up calibration.
     resetGyro(); // Sets the gyro angle to 0 based on the current heading of the robot.
-
+    gyroDisabled = gyroFailure;
     updateModuleStatus(); // Checks whether any modules are offline or did not start up properly.
   }
   
@@ -216,17 +216,16 @@ class Drivetrain {
   
   // Resets the gyro to 0. The current angle of the robot is now defined as 0 degrees. Also clears gyroFailures if a connection is re-established
   public void resetGyro() {
+    gyroFailure = !gyro.isConnected();
     if (!gyroFailure) {
-      gyroFailure = !gyro.isConnected();
-      if (gyro.isConnected()) {
-        gyro.zeroYaw();
-      }
+      gyro.zeroYaw();
     }
   }
 
   // Allows the driver to toggle whether the gyro is enabled or disabled. Disabled gyro stops auto and field-oriented control. Useful in case of gyro issues.
   public void toggleGyro() {
     gyroDisabled = !gyroDisabled;
+    resetGyro();
   }
 
   // The following 4 functions allow the driver to toggle whether each of the swerve modules is on. Useful in the case of an engine failure in match. 
