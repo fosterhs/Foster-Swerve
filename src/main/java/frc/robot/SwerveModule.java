@@ -119,13 +119,13 @@ class SwerveModule {
   
   // Returns the raw value of the wheel encoder. Range: 0-360 degrees.
   public double getWheelEncoder() {
-    double position = wheelEncoder.getAbsolutePosition()*360 - encoder0;
-    if (position > 180.0) {
-      position = position - 360.0;
-    } else if (position < -180.0) {
-      position = position + 360.0;
+    double wheelAngle = wheelEncoder.getAbsolutePosition()*360.0 - encoder0;
+    if (wheelAngle > 180.0) {
+      wheelAngle = wheelAngle - 360.0;
+    } else if (wheelAngle < -180.0) {
+      wheelAngle = wheelAngle + 360.0;
     }
-    return position;
+    return wheelAngle;
   }
   
   // Sets the velocity of the module. Units: meters per second
@@ -148,7 +148,6 @@ class SwerveModule {
 
   // Toggles whether the module is enabled or disabled. Used in the case of an engine failure.
   public void toggleModule() {
-    moduleDisabled = !moduleDisabled;
     if (moduleDisabled) {
       enableDriveMotor();
       enableTurnMotor();
@@ -156,6 +155,7 @@ class SwerveModule {
       disableDriveMotor();
       disableTurnMotor();
     }
+    moduleDisabled = !moduleDisabled;
     moduleFailure = turnMotorFailure || driveMotorFailure;
   }
 

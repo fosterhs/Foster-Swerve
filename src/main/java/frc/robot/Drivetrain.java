@@ -48,9 +48,9 @@ class Drivetrain {
   public boolean gyroDisabled = false;
   
   // Path following parameters
-  private final double pathXTol = 0.03; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
-  private final double pathYTol = 0.03; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
-  private final double pathAngTol = 3.0; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: degrees
+  private final double pathXTol = 0.01; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
+  private final double pathYTol = 0.01; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
+  private final double pathAngTol = 0.5; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: degrees
   private double maxPathVel = 2.0; // Maximum robot velocity while following a path. Use the set function to modify this prior to following a path.
   private double maxPathAcc = 2.0; // Maximum robot acceleration while following a path. Use the set function to modify this prior to following a path.
   private boolean pathReversal = false; // Whether the path should be followed in forwards or reverse. Use the set function to modify this prior to following a path.
@@ -60,11 +60,11 @@ class Drivetrain {
   private final Timer timer = new Timer();
  
   // Autonomous swerve controller parameters. Hard code these values.
-  private final double kP_drive = 10.0;
+  private final double kP_drive = 1.0;
   private final double kI_drive = 0.0;
   private final double kD_drive = 0.0;
   private final double I_driveMax = 0.6;
-  private final double kP_turn = 5.0;
+  private final double kP_turn = 4.0;
   private final double kI_turn = 0.0;
   private final double kD_turn = 0.0;
   private final double I_turnMax = 0.6;
@@ -151,7 +151,7 @@ class Drivetrain {
       updateOdometry();
       PathPlannerState currentGoal = (PathPlannerState) path.sample(timer.get());
       ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
-      drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, true); // Sets the robot to the correct velocities. 
+      drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, false); // Sets the robot to the correct velocities. 
       pathXPos = currentGoal.poseMeters.getX();
       pathYPos = currentGoal.poseMeters.getY();
       pathAngPos = currentGoal.holonomicRotation.getDegrees();
@@ -197,6 +197,20 @@ class Drivetrain {
   // Returns the odometry calculated y position of the robot in meters.
   public double getYPos() {
     return odometry.getPoseMeters().getY();
+  }
+
+  public double getPathPosError() {
+    return Math.sqrt(Math.pow(pathYPos - getYPos(), 2) + Math.pow(pathXPos - getXPos(), 2));
+  }
+
+  public double getPathAngleError() {
+    double rawAngleError = getAngPos() - pathAngPos;
+    if (rawAngleError > 180.0) {
+      rawAngleError = rawAngleError - 360.0;
+    } else if (rawAngleError < -180.0) {
+      rawAngleError = rawAngleError + 360.0;
+    }
+    return rawAngleError;
   }
 
   // Resets the robot's odometry to the start point of the path loaded into loadPath()
@@ -294,5 +308,8 @@ class Drivetrain {
     SmartDashboard.putBoolean("moduleOfflineBL", backLeftModule.moduleDisabled);
     SmartDashboard.putBoolean("moduleOfflineBR", backRightModule.moduleDisabled);
     SmartDashboard.putBoolean("moduleOffline", moduleOffline);
+    SmartDashboard.putNumber("positionError", getPathPosError());
+    SmartDashboard.putNumber("angleError", getPathAngleError());
+    SmartDashboard.putBoolean("atEndpoint", atEndpoint());
   }
 }
