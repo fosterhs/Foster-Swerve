@@ -34,18 +34,18 @@ class Drivetrain {
   private final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
 
   // Initializes each swerve module object.
-  public final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false, 113.4); 
-  public final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true, 316.1);
-  public final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true, 74.2);
-  public final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false, 141.1);
+  private final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false, 113.4); 
+  private final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true, 316.1);
+  private final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true, 74.2);
+  private final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false, 141.1);
   private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getSMP(), frontRightModule.getSMP(), backRightModule.getSMP(), backLeftModule.getSMP()});
-  public boolean moduleError = false; // Indicates whether there is at least 1 swerve module failure.
-  public boolean moduleOffline = false; // Indcates whether at least 1 module is offline.
+  private boolean moduleFailure = false; // Indicates whether there is at least 1 swerve module failure.
+  private boolean moduleDisabled = false; // Indcates whether at least 1 module is offline.
 
   // Gyroscope variables
   private final AHRS gyro = new AHRS();
-  public boolean gyroFailure = false; // Indicates whether the gyro has lost connection at any point after a yaw-reset.
-  public boolean gyroDisabled = false;
+  private boolean gyroFailure = false; // Indicates whether the gyro has lost connection at any point after a yaw-reset.
+  private boolean gyroDisabled = false;
   
   // Path following parameters
   private final double pathXTol = 0.01; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
@@ -147,7 +147,7 @@ class Drivetrain {
   
   // Tracks the path. Should be called each period until the endpoint is reached.
   public void followPath() {
-    if (!gyroFailure && !gyroDisabled && !moduleError && !moduleOffline) {
+    if (!gyroFailure && !gyroDisabled && !moduleFailure && !moduleDisabled) {
       updateOdometry();
       PathPlannerState currentGoal = (PathPlannerState) path.sample(timer.get());
       ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
@@ -162,7 +162,7 @@ class Drivetrain {
   
   // Tells whether the robot has reached the endpoint of the path, within the specified tolerance.
   public boolean atEndpoint() {
-    if (!gyroDisabled && !gyroFailure && !moduleError && !moduleOffline) {
+    if (!gyroDisabled && !gyroFailure && !moduleFailure && !moduleDisabled) {
       PathPlannerState endState = path.getEndState();
       return Math.abs(getAngPos() - endState.holonomicRotation.getDegrees()) < pathAngTol 
       && Math.abs(getXPos() - endState.poseMeters.getX()) < pathXTol 
@@ -204,13 +204,13 @@ class Drivetrain {
   }
 
   public double getPathAngleError() {
-    double rawAngleError = getAngPos() - pathAngPos;
-    if (rawAngleError > 180.0) {
-      rawAngleError = rawAngleError - 360.0;
-    } else if (rawAngleError < -180.0) {
-      rawAngleError = rawAngleError + 360.0;
+    double AngleError = getAngPos() - pathAngPos;
+    if (AngleError > 180.0) {
+      AngleError = AngleError - 360.0;
+    } else if (AngleError < -180.0) {
+      AngleError = AngleError + 360.0;
     }
-    return rawAngleError;
+    return AngleError;
   }
 
   // Resets the robot's odometry to the start point of the path loaded into loadPath()
@@ -242,6 +242,14 @@ class Drivetrain {
     resetGyro();
   }
 
+  public boolean getGyroFailure() {
+    return gyroFailure;
+  }
+
+  public boolean getGyroDisabled() {
+    return gyroDisabled;
+  }
+
   // The following 4 functions allow the driver to toggle whether each of the swerve modules is on. Useful in the case of an engine failure in match. 
   public void toggleFL() {
     frontLeftModule.toggleModule();
@@ -262,11 +270,19 @@ class Drivetrain {
     backRightModule.toggleModule();
     updateModuleStatus();
   }
+
+  public boolean getModuleFailure() {
+    return moduleFailure;
+  }
+
+  public boolean getModuleDisabled() {
+    return moduleDisabled;
+  }
   
   // Updates moduleError and moduleOffline to reflect the current status of the swerve modules
   private void updateModuleStatus() {
-    moduleError = frontLeftModule.moduleFailure || frontRightModule.moduleFailure || backLeftModule.moduleFailure || backRightModule.moduleFailure;
-    moduleOffline = frontLeftModule.moduleDisabled || frontRightModule.moduleDisabled || backLeftModule.moduleDisabled || backRightModule.moduleDisabled;
+    moduleFailure = frontLeftModule.getModuleFailure() || frontRightModule.getModuleFailure() || backLeftModule.getModuleFailure() || backRightModule.getModuleFailure();
+    moduleDisabled = frontLeftModule.getModuleDisabled() || frontRightModule.getModuleDisabled() || backLeftModule.getModuleDisabled() || backRightModule.getModuleDisabled();
   }
   
   // Publishes all values to Smart Dashboard.
@@ -298,16 +314,16 @@ class Drivetrain {
     SmartDashboard.putNumber("BR encoder", backRightModule.getWheelEncoder());
     SmartDashboard.putBoolean("gyroFailure", gyroFailure);
     SmartDashboard.putBoolean("gyroDisabled", gyroDisabled);
-    SmartDashboard.putBoolean("moduleErrorFL", frontLeftModule.moduleFailure);
-    SmartDashboard.putBoolean("moduleErrorFR", frontRightModule.moduleFailure);
-    SmartDashboard.putBoolean("moduleErrorBL", backLeftModule.moduleFailure);
-    SmartDashboard.putBoolean("moduleErrorBR", backRightModule.moduleFailure);
-    SmartDashboard.putBoolean("moduleError", moduleError);
-    SmartDashboard.putBoolean("moduleOfflineFL", frontLeftModule.moduleDisabled);
-    SmartDashboard.putBoolean("moduleOfflineFR", frontRightModule.moduleDisabled);
-    SmartDashboard.putBoolean("moduleOfflineBL", backLeftModule.moduleDisabled);
-    SmartDashboard.putBoolean("moduleOfflineBR", backRightModule.moduleDisabled);
-    SmartDashboard.putBoolean("moduleOffline", moduleOffline);
+    SmartDashboard.putBoolean("moduleErrorFL", frontLeftModule.getModuleFailure());
+    SmartDashboard.putBoolean("moduleErrorFR", frontRightModule.getModuleFailure());
+    SmartDashboard.putBoolean("moduleErrorBL", backLeftModule.getModuleFailure());
+    SmartDashboard.putBoolean("moduleErrorBR", backRightModule.getModuleFailure());
+    SmartDashboard.putBoolean("moduleError", moduleFailure);
+    SmartDashboard.putBoolean("moduleOfflineFL", frontLeftModule.getModuleDisabled());
+    SmartDashboard.putBoolean("moduleOfflineFR", frontRightModule.getModuleDisabled());
+    SmartDashboard.putBoolean("moduleOfflineBL", backLeftModule.getModuleDisabled());
+    SmartDashboard.putBoolean("moduleOfflineBR", backRightModule.getModuleDisabled());
+    SmartDashboard.putBoolean("moduleOffline", moduleDisabled);
     SmartDashboard.putNumber("positionError", getPathPosError());
     SmartDashboard.putNumber("angleError", getPathAngleError());
     SmartDashboard.putBoolean("atEndpoint", atEndpoint());

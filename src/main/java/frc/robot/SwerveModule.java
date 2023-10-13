@@ -15,22 +15,22 @@ class SwerveModule {
   private static final double turnGearRatio = 150.0/7.0;
   private static final double driveGearRatio = 57.0/7.0;
   private static final double currentLimit = 40.0; // Single motor current limit in amps.
-  private final double encoder0;
 
   private final AnalogEncoder wheelEncoder;
+  private final double wheelEncoderZero;
   private final WPI_TalonFX driveMotor;
   private final WPI_TalonFX turnMotor;
   private final boolean invertDrive;
 
   // Motor error code tracking variables.
   private final int maxMotorErrors = 20; // The most times a configuration command can be unsuccesfully sent to a motor before a failure is declared and the motor is disabled. 
-  public boolean driveMotorFailure = false; // Whether the drive motor has failed to configure correctly.
-  public boolean turnMotorFailure = false; // Whether the turn motor has failed to configure correctly.
-  public boolean moduleFailure = false; // Whether either the drive motor or the turn motor has failed to configure correctly.
-  public boolean moduleDisabled = false; // Whether the module has been disabled by the driver.
+  private boolean driveMotorFailure = false; // Whether the drive motor has failed to configure correctly.
+  private boolean turnMotorFailure = false; // Whether the turn motor has failed to configure correctly.
+  private boolean moduleFailure = false; // Whether either the drive motor or the turn motor has failed to configure correctly.
+  private boolean moduleDisabled = false; // Whether the module has been disabled by the driver.
 
-  public SwerveModule(int turnID, int driveID, int encoderID, boolean _invertDrive, double _encoder0) {
-    encoder0 = _encoder0;
+  public SwerveModule(int turnID, int driveID, int encoderID, boolean _invertDrive, double _wheelEncoderZero) {
+    wheelEncoderZero = _wheelEncoderZero;
     invertDrive = _invertDrive;
     wheelEncoder = new AnalogEncoder(encoderID);
     driveMotor = new WPI_TalonFX(driveID);
@@ -119,7 +119,7 @@ class SwerveModule {
   
   // Returns the raw value of the wheel encoder. Range: 0-360 degrees.
   public double getWheelEncoder() {
-    double wheelAngle = wheelEncoder.getAbsolutePosition()*360.0 - encoder0;
+    double wheelAngle = wheelEncoder.getAbsolutePosition()*360.0 - wheelEncoderZero;
     if (wheelAngle > 180.0) {
       wheelAngle = wheelAngle - 360.0;
     } else if (wheelAngle < -180.0) {
@@ -157,6 +157,22 @@ class SwerveModule {
     }
     moduleDisabled = !moduleDisabled;
     moduleFailure = turnMotorFailure || driveMotorFailure;
+  }
+
+  public boolean getDriveMotorFailure() {
+    return driveMotorFailure;
+  }
+
+  public boolean getTurnMotorFailure() {
+    return turnMotorFailure;
+  }
+
+  public boolean getModuleFailure() {
+    return moduleFailure;
+  }
+
+  public boolean getModuleDisabled() {
+    return moduleDisabled;
   }
 
   // The following 2 functions disable the motor in the case of too many CAN errors, or if the driver chooses to disable the module in the case of an engine or mechanical failure.
@@ -200,6 +216,8 @@ class SwerveModule {
         break;
       }
     }
+    driveMotor.setInverted(invertDrive);
+    driveMotor.setNeutralMode(NeutralMode.Brake);
     while (driveMotor.setSelectedSensorPosition(0, 0, 30).value != 0) {
       driveMotorErrors++;
       driveMotorFailure = driveMotorErrors > maxMotorErrors;
@@ -207,8 +225,6 @@ class SwerveModule {
         break;
       }
     }
-    driveMotor.setNeutralMode(NeutralMode.Brake);
-    driveMotor.setInverted(invertDrive);
 
     // Velocity control parameters for the drive motor
     double kI_drive = 0.0003;
@@ -271,6 +287,8 @@ class SwerveModule {
         break;
       }
     }
+    turnMotor.setInverted(true);
+    turnMotor.setNeutralMode(NeutralMode.Brake);
     while (turnMotor.setSelectedSensorPosition(isStartUp ? -getWheelEncoder()*falconEncoderRes*turnGearRatio/360.0 : getWheelEncoder()*falconEncoderRes*turnGearRatio/360.0, 0, 30).value != 0) {
       turnMotorErrors++;
       turnMotorFailure = turnMotorErrors > maxMotorErrors;
@@ -278,8 +296,6 @@ class SwerveModule {
         break;
       }
     }
-    turnMotor.setNeutralMode(NeutralMode.Brake);
-    turnMotor.setInverted(true);
 
     // Sets position control parameters for the turn motor
     double kI_turn = 0.001;
