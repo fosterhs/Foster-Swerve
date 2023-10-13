@@ -198,11 +198,13 @@ class Drivetrain {
   public double getYPos() {
     return odometry.getPoseMeters().getY();
   }
-
+  
+  // The distance between the robot's current position and the current trajectory position. Units: meters
   public double getPathPosError() {
     return Math.sqrt(Math.pow(pathYPos - getYPos(), 2) + Math.pow(pathXPos - getXPos(), 2));
   }
 
+  // The angular distance to the current trajectory point. Units: degrees
   public double getPathAngleError() {
     double AngleError = getAngPos() - pathAngPos;
     if (AngleError > 180.0) {
@@ -241,11 +243,13 @@ class Drivetrain {
     gyroDisabled = !gyroDisabled;
     resetGyro();
   }
-
+  
+  // True if the gyro was disconnected at any point after a yaw reset.
   public boolean getGyroFailure() {
     return gyroFailure;
   }
 
+  // True if the gyro was disconnected on startup or if the gyro was disabled by the driver.
   public boolean getGyroDisabled() {
     return gyroDisabled;
   }
@@ -271,10 +275,12 @@ class Drivetrain {
     updateModuleStatus();
   }
 
+  // True if a single module failed to configure on startup or reboot.
   public boolean getModuleFailure() {
     return moduleFailure;
   }
-
+  
+  // True if a single module is disabled by the driver or the turn motor and drive motor failed to configure on startup or reboot.
   public boolean getModuleDisabled() {
     return moduleDisabled;
   }

@@ -37,7 +37,7 @@ class SwerveModule {
     turnMotor = new WPI_TalonFX(turnID);
 
     configDriveMotor();
-    configTurnMotor(true);
+    configTurnMotor();
     moduleDisabled = driveMotorFailure && turnMotorFailure;
     moduleFailure = turnMotorFailure || driveMotorFailure;
   }
@@ -159,18 +159,22 @@ class SwerveModule {
     moduleFailure = turnMotorFailure || driveMotorFailure;
   }
 
+  // True if the drive motor failed to respond to configuration commands on startup or reboot. Is a likely indicator of motor or CAN failure.
   public boolean getDriveMotorFailure() {
     return driveMotorFailure;
   }
 
+  // True if the turn motor failed to respond to configuration commands on startup or reboot. Is a likely indicator of motor or CAN failure.
   public boolean getTurnMotorFailure() {
     return turnMotorFailure;
   }
 
+  // True if the drive motor *or* turn motor failed to configure.
   public boolean getModuleFailure() {
     return moduleFailure;
   }
 
+  // True if the drive motor *and* the turn motor failed to configure on startup, or if the driver disabled the module.
   public boolean getModuleDisabled() {
     return moduleDisabled;
   }
@@ -189,7 +193,7 @@ class SwerveModule {
   // The following 2 functions re-enable the motor. These should be called if the motors were previously disabled by the driver, or failed to properly initialize at robot start-up. Motors will automatically be re-disabled if they are not able to be configured properly.
   private void enableTurnMotor() {
     turnMotorFailure = false;
-    configTurnMotor(false);
+    configTurnMotor();
   }
 
   private void enableDriveMotor() {
@@ -197,27 +201,27 @@ class SwerveModule {
     configDriveMotor();
   }
 
-  // The following 2 functions configure the motor upon startup. They set current limits, PID controller constants, etc. If too many errors are produced during configuration, the motor will automatically be disabled and set to coast.
   private void configDriveMotor() {
+    driveMotor.setInverted(invertDrive);
+    TalonFXConfiguration config = configCurrentLimit();
+
+    // Sets the PID controller parameters
+    double kI_drive = 0.0003;
+    config.slot0.kP = 0.04;
+    config.slot0.kI = kI_drive;
+    config.slot0.kD = 1.0;
+    config.slot0.kF = 0.0447;
+    config.slot0.maxIntegralAccumulator = 0.8*1023.0/kI_drive;
+
     int driveMotorErrors = 0;
 
-    while (driveMotor.configFactoryDefault(30).value != 0) {
+    while (driveMotor.configAllSettings(config, 30).value != 0) {
       driveMotorErrors++;
       driveMotorFailure = driveMotorErrors > maxMotorErrors;
       if (driveMotorFailure) {
         break;
       }
     }
-
-    while (driveMotor.configAllSettings(configCurrentLimit(), 30).value != 0) {
-      driveMotorErrors++;
-      driveMotorFailure = driveMotorErrors > maxMotorErrors;
-      if (driveMotorFailure) {
-        break;
-      }
-    }
-    driveMotor.setInverted(invertDrive);
-    driveMotor.setNeutralMode(NeutralMode.Brake);
     while (driveMotor.setSelectedSensorPosition(0, 0, 30).value != 0) {
       driveMotorErrors++;
       driveMotorFailure = driveMotorErrors > maxMotorErrors;
@@ -225,130 +229,44 @@ class SwerveModule {
         break;
       }
     }
-
-    // Velocity control parameters for the drive motor
-    double kI_drive = 0.0003;
-    while (driveMotor.config_kP(0, 0.04, 30).value != 0) {
-      driveMotorErrors++;
-      driveMotorFailure = driveMotorErrors > maxMotorErrors;
-      if (driveMotorFailure) {
-        break;
-      }
-    }
-    while (driveMotor.config_kI(0, kI_drive, 30).value != 0) {
-      driveMotorErrors++;
-      driveMotorFailure = driveMotorErrors > maxMotorErrors;
-      if (driveMotorFailure) {
-        break;
-      }
-    }
-    while (driveMotor.config_kD(0, 1.0, 30).value != 0) {
-      driveMotorErrors++;
-      driveMotorFailure = driveMotorErrors > maxMotorErrors;
-      if (driveMotorFailure) {
-        break;
-      }
-    }
-    while (driveMotor.config_kF(0, 0.0447, 30).value != 0) {
-      driveMotorErrors++;
-      driveMotorFailure = driveMotorErrors > maxMotorErrors;
-      if (driveMotorFailure) {
-        break;
-      }
-    }
-    while (driveMotor.configMaxIntegralAccumulator(0, 0.8*1023.0/kI_drive, 30).value != 0) {
-      driveMotorErrors++;
-      driveMotorFailure = driveMotorErrors > maxMotorErrors;
-      if (driveMotorFailure) {
-        break;
-      }
-    }
+    driveMotor.setNeutralMode(NeutralMode.Brake);
 
     if (driveMotorFailure) {
       disableDriveMotor();
     }
   }
-  
-  private void configTurnMotor(boolean isStartUp) {
-    int turnMotorErrors = 0;
 
-    while (turnMotor.configFactoryDefault(30).value != 0) {
-      turnMotorErrors++;
-      turnMotorFailure = turnMotorErrors > maxMotorErrors;
-      if (turnMotorFailure) {
-        break;
-      }
-    }
-
-    while (turnMotor.configAllSettings(configCurrentLimit(), 30).value != 0) {
-      turnMotorErrors++;
-      turnMotorFailure = turnMotorErrors > maxMotorErrors;
-      if (turnMotorFailure) {
-        break;
-      }
-    }
+  private void configTurnMotor() {
     turnMotor.setInverted(true);
-    turnMotor.setNeutralMode(NeutralMode.Brake);
-    while (turnMotor.setSelectedSensorPosition(isStartUp ? -getWheelEncoder()*falconEncoderRes*turnGearRatio/360.0 : getWheelEncoder()*falconEncoderRes*turnGearRatio/360.0, 0, 30).value != 0) {
-      turnMotorErrors++;
-      turnMotorFailure = turnMotorErrors > maxMotorErrors;
-      if (turnMotorFailure) {
-        break;
-      }
-    }
+    TalonFXConfiguration config = configCurrentLimit();
 
-    // Sets position control parameters for the turn motor
+    // Sets the PID controller parameters
     double kI_turn = 0.001;
-    while (turnMotor.config_kP(0, 0.4, 30).value != 0) {
+    config.slot0.kP = 0.4;
+    config.slot0.kI = kI_turn;
+    config.slot0.kD = 3.0;
+    config.slot0.maxIntegralAccumulator = 0.8*1023.0/kI_turn;
+    config.slot0.allowableClosedloopError = 20;
+    config.motionAcceleration = 100000;
+    config.motionCruiseVelocity = 200000;
+
+    int turnMotorErrors = 0;
+    while (turnMotor.configAllSettings(config, 30).value != 0) {
       turnMotorErrors++;
       turnMotorFailure = turnMotorErrors > maxMotorErrors;
       if (turnMotorFailure) {
         break;
       }
     }
-    while (turnMotor.config_kI(0, kI_turn, 30).value != 0) {
+    while (turnMotor.setSelectedSensorPosition(getWheelEncoder()*falconEncoderRes*turnGearRatio/360.0).value != 0) {
       turnMotorErrors++;
       turnMotorFailure = turnMotorErrors > maxMotorErrors;
       if (turnMotorFailure) {
         break;
       }
     }
-    while (turnMotor.config_kD(0, 3.0, 30).value != 0) {
-      turnMotorErrors++;
-      turnMotorFailure = turnMotorErrors > maxMotorErrors;
-      if (turnMotorFailure) {
-        break;
-      }
-    }
-    while (turnMotor.configMotionAcceleration(100000, 30).value != 0) {
-      turnMotorErrors++;
-      turnMotorFailure = turnMotorErrors > maxMotorErrors;
-      if (turnMotorFailure) {
-        break;
-      }
-    }
-    while (turnMotor.configMotionCruiseVelocity(200000, 30).value != 0) {
-      turnMotorErrors++;
-      turnMotorFailure = turnMotorErrors > maxMotorErrors;
-      if (turnMotorFailure) {
-        break;
-      }
-    }
-    while (turnMotor.configAllowableClosedloopError(0, 20, 30).value != 0) {
-      turnMotorErrors++;
-      turnMotorFailure = turnMotorErrors > maxMotorErrors;
-      if (turnMotorFailure) {
-        break;
-      }
-    }
-    while (turnMotor.configMaxIntegralAccumulator(0, 0.8*1023/kI_turn, 30).value != 0) {
-      turnMotorErrors++;
-      turnMotorFailure = turnMotorErrors > maxMotorErrors;
-      if (turnMotorFailure) {
-        break;
-      }
-    }
-    
+    turnMotor.setNeutralMode(NeutralMode.Brake);
+
     if (turnMotorFailure) {
       disableTurnMotor();
     }
