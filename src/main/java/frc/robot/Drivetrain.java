@@ -1,5 +1,6 @@
 package frc.robot;
 
+import java.util.ArrayList;
 import com.kauailabs.navx.frc.AHRS;
 import com.pathplanner.lib.PathConstraints;
 import com.pathplanner.lib.PathPlanner;
@@ -21,67 +22,69 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 class Drivetrain {
-  public static final double maxVel = 4.0; // User defined maximum speed of the robot. Unit: meters per second
-  public static final double maxAngularVel = 2*Math.PI; // User defined maximum rotational speed of the robot. Unit: raidans per second
-  public static final double maxAcc = 12.0; // User defined maximum acceleration of the robot. Unit: meters per second^2
-  public static final double maxAngularAcc = 6*Math.PI; // User defined maximum rotational acceleration of the robot. Unit: raidans per second^2
+  public static final double maxVel = 4.0; // User defined maximum speed of the robot. Enforced during auto and teleop. Unit: meters per second
+  public static final double maxAngularVel = 2*Math.PI; // User defined maximum rotational speed of the robot. Enforced only during teleop. Unit: raidans per second
+  public static final double maxAcc = 12.0; // User defined maximum acceleration of the robot. Enforced only during teleop. Unit: meters per second^2
+  public static final double maxAngularAcc = 6*Math.PI; // User defined maximum rotational acceleration of the robot. Enforced only during teleop. Unit: raidans per second^2
 
-  // Positions of the swerve modules relative to the center of the roboot. +x points towards the robot's front. +y points to the robot's left.
-  private static final Translation2d frontLeftPos = new Translation2d(0.225, 0.225);
-  private static final Translation2d frontRightPos = new Translation2d(0.225, -0.225); 
-  private static final Translation2d backRightPos = new Translation2d(-0.225, -0.225);
-  private static final Translation2d backLeftPos = new Translation2d(-0.225, 0.225);
-  private final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(frontLeftPos, frontRightPos, backRightPos, backLeftPos);
+  // Positions of the swerve modules relative to the center of the roboot. +x points towards the robot's front. +y points to the robot's left. Units: meters.
+  private static final Translation2d frontLeftModulePos = new Translation2d(0.225, 0.225);
+  private static final Translation2d frontRightModulePos = new Translation2d(0.225, -0.225); 
+  private static final Translation2d backRightModulePos = new Translation2d(-0.225, -0.225);
+  private static final Translation2d backLeftModulePos = new Translation2d(-0.225, 0.225);
+  private final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(frontLeftModulePos, frontRightModulePos, backRightModulePos, backLeftModulePos);
 
   // Initializes each swerve module object.
   private final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false, 113.4); 
   private final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true, 316.1);
   private final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true, 74.2);
   private final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false, 141.1);
-  private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), new SwerveModulePosition[] {frontLeftModule.getSMP(), frontRightModule.getSMP(), backRightModule.getSMP(), backLeftModule.getSMP()});
-  private boolean moduleFailure = false; // Indicates whether there is at least 1 swerve module failure.
-  private boolean moduleDisabled = false; // Indcates whether at least 1 module is offline.
+  private final SwerveModule[] modules = {frontLeftModule, frontRightModule, backRightModule, backLeftModule};
+  private boolean moduleFailure = false; // Indicates whether there is at least 1 swerve module engine failure.
+  private boolean moduleDisabled = false; // Indcates whether at least 1 module is disabled, either on startup or by the driver.
 
   // Gyroscope variables
   private final AHRS gyro = new AHRS();
   private boolean gyroFailure = false; // Indicates whether the gyro has lost connection at any point after a yaw-reset.
-  private boolean gyroDisabled = false;
+  private boolean gyroDisabled = false; // Indicates whether the gyro was disabled on startup, or by the driver by calling disableGyro()
   
   // Path following parameters
   private final double pathXTol = 0.01; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
   private final double pathYTol = 0.01; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
   private final double pathAngTol = 0.5; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: degrees
-  private double maxPathVel = 2.0; // Maximum robot velocity while following a path. Use the set function to modify this prior to following a path.
-  private double maxPathAcc = 2.0; // Maximum robot acceleration while following a path. Use the set function to modify this prior to following a path.
+  private double maxPathVel = 2.0; // Maximum robot velocity while following a path. Use the set function to modify this prior to following a path. Units: meters per second
+  private double maxPathAcc = 2.0; // Maximum robot acceleration while following a path. Use the set function to modify this prior to following a path. Units: meters per second^2
   private boolean pathReversal = false; // Whether the path should be followed in forwards or reverse. Use the set function to modify this prior to following a path.
 
   // Path following
-  private PathPlannerTrajectory path;
+  private ArrayList<PathPlannerTrajectory> paths = new ArrayList<PathPlannerTrajectory>();
+  private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), getSMPs());
   private final Timer timer = new Timer();
  
   // Autonomous swerve controller parameters. Hard code these values.
-  private final double kP_drive = 1.0;
-  private final double kI_drive = 0.0;
-  private final double kD_drive = 0.0;
-  private final double I_driveMax = 0.6;
-  private final double kP_turn = 4.0;
-  private final double kI_turn = 0.0;
-  private final double kD_turn = 0.0;
-  private final double I_turnMax = 0.6;
+  private final double kP_drive = 1.0; // Units: The number of meter/second of correction for every 1meter of error.
+  private final double kI_drive = 0.0; // Units: The number of meter/second of correction for every 1meter*1second of error.
+  private final double kD_drive = 0.0; // Units: The number of meter/second of correction for every 1meter/1second of error.
+  private final double I_driveMax = 1.0; // The maxiumum number of meter/second of correction based on the I term.
+  private final double kP_turn = 4.0; // Units: The number of radian/second of correction for every 1rad of error.
+  private final double kI_turn = 0.0; // Units: The number of radian/second of correction for every 1radian*1second of error.
+  private final double kD_turn = 0.0; // Units: The number of radian/second of correction for every 1radian/1second of error.
+  private final double I_turnMax = 1.0; // The maxiumum number of radian/second of correction based on the I term.
 
   // Autonomous swerve controller
-  private final PIDController xController = new PIDController(kP_drive, kI_drive, kD_drive);
-  private final PIDController yController = new PIDController(kP_drive, kI_drive, kD_drive);
-  private final ProfiledPIDController turnController = new ProfiledPIDController(kP_turn, kI_turn, kD_turn, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel));
-  private final HolonomicDriveController swerveController = new HolonomicDriveController(xController, yController, turnController); // Defining the PID controllers and their constants for trajectory tracking.
+  private final PIDController xController = new PIDController(kP_drive, kI_drive, kD_drive); // Controls corrections to the x-velocity during path following.
+  private final PIDController yController = new PIDController(kP_drive, kI_drive, kD_drive); // Controls corrections to the y-velocity during path following.
+  private final ProfiledPIDController turnController = 
+    new ProfiledPIDController(kP_turn, kI_turn, kD_turn, new TrapezoidProfile.Constraints(Drivetrain.maxAngularVel, Drivetrain.maxAngularVel)); // Controls corrections to the angular velocity during path following.
+  private final HolonomicDriveController swerveController = new HolonomicDriveController(xController, yController, turnController); // An object that contains all 3 controllers in one.
   
-  // These variables are updated each period and passed to SmartDashboard.
-  private double xVel = 0.0;
-  private double yVel = 0.0;
-  private double angVel = 0.0;
-  private double pathXPos = 0.0;
-  private double pathYPos = 0.0;
-  private double pathAngPos = 0.0;
+  // These variables are updated each period so they can be passed to the dashboard. 
+  private double xVel = 0.0; // Unit: meters per second
+  private double yVel = 0.0; // Unit: meters per second
+  private double angVel = 0.0; // Unit: degrees per second
+  private double pathXPos = 0.0; // Unit: meters
+  private double pathYPos = 0.0; // Unit: meters
+  private double pathAngPos = 0.0; // Unit degrees
 
   public Drivetrain() {
     // Sets autonomous swerve controller parameters
@@ -96,60 +99,52 @@ class Drivetrain {
     updateModuleStatus(); // Checks whether any modules are offline or did not start up properly.
   }
   
-  // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel
+  // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel. 
+  // fieldRelative determines field-oriented control vs. robot-oriented control. field-relative control is automatically disabled in the case of a gyro failure.
   public void drive(double _xVel, double _yVel, double _angVel, boolean fieldRelative) {
     xVel = _xVel;
     yVel = _yVel;
-    angVel = _angVel;
-    SwerveModuleState[] moduleStates;
-    if (fieldRelative && !gyroFailure && !gyroDisabled) { // Field oriented control
-      moduleStates = kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(xVel, yVel, angVel, Rotation2d.fromDegrees(getAngPos())));
-    } else { // Robot oriented control
-      moduleStates = kinematics.toSwerveModuleStates(new ChassisSpeeds(xVel, yVel, angVel));
-    }
+    angVel = _angVel*180.0/Math.PI;
+    SwerveModuleState[] moduleStates = fieldRelative && !gyroFailure && !gyroDisabled
+     ? kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(_xVel, _yVel, _angVel, Rotation2d.fromDegrees(getAngPos())))
+     : kinematics.toSwerveModuleStates(new ChassisSpeeds(_xVel, _yVel, _angVel));
     SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, maxVel); // Makes sure the calculated velocities are attainable. If they are not, all modules velocities are scaled back.
-
-    // Sets the module angles and velocities.
-    frontLeftModule.setSMS(moduleStates[0]);
-    frontRightModule.setSMS(moduleStates[1]);
-    backRightModule.setSMS(moduleStates[2]);
-    backLeftModule.setSMS(moduleStates[3]);
+    for (int moduleIndex = 0; moduleIndex < modules.length; moduleIndex++) {
+      modules[moduleIndex].setSMS(moduleStates[moduleIndex]); // Sets the module angles and velocities.
+    }
   }
   
-  // Loads the path. All paths should be loaded during robotInit() since this call is computationally expensive.
-  public void loadPath(String pathName, boolean resetOdometry) {
-    path = PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal); // Uploading the PathPlanner trajectory to the program. The maximum acceleration and velocity can be set to suitable values for auto.
+  // Loads the path. All paths should be loaded during robotInit() since this call is computationally expensive. Each path is stored and refered to by the provided index.
+  public void loadPath(String pathName, int pathIndex) {
+    paths.add(pathIndex, PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal));
   }
 
-  // Path following 3 functions should be adjusted prior to calling loadPath(). These functions define the parameters of the path follower. They will default to reasonable pre-defined values if these functions are not called.
-  public void setMaxPathVel(double desiredMaxVel) {
+  // The following 3 functions should be adjusted prior to calling loadPath(). These functions define the parameters of the path follower. They will default to reasonable pre-defined values if these functions are not called.
+  public void setMaxPathVel(double desiredMaxVel) { // Sets the maximum path following velocity.
     maxPathVel = desiredMaxVel;
   }
 
-  public void setPathReversal(boolean desiredReversal) {
+  public void setPathReversal(boolean desiredReversal) { // Sets whether the path is followed in forwards or reverse.
     pathReversal = desiredReversal;
   }
 
-  public void setMaxPathAcc(double desiredMaxAcc) {
+  public void setMaxPathAcc(double desiredMaxAcc) { // Sets the maximum path following acceleration.
     maxPathAcc = desiredMaxAcc;
   }
 
-  // Should be called immediately before the user would like the robot to begin tracking the path. If resetOdometry == true, this call sets the field position of the robot to the starting point of the path.
-  public void resetPathController(boolean resetOdometryToPathStart) {
+  // Should be called once exactly 1 period prior to the start of calls to followPath() each time a path is followed. 
+  public void resetPathController() {
     xController.reset();
     yController.reset();
-    turnController.reset(0);
+    turnController.reset(0, 0);
     timer.restart();
-    if (resetOdometryToPathStart) {
-      resetOdometryToPathStart();
-    }
   }
   
   // Tracks the path. Should be called each period until the endpoint is reached.
-  public void followPath() {
+  public void followPath(int pathIndex) {
     if (!gyroFailure && !gyroDisabled && !moduleFailure && !moduleDisabled) {
       updateOdometry();
-      PathPlannerState currentGoal = (PathPlannerState) path.sample(timer.get());
+      PathPlannerState currentGoal = (PathPlannerState) paths.get(pathIndex).sample(timer.get());
       ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
       drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, false); // Sets the robot to the correct velocities. 
       pathXPos = currentGoal.poseMeters.getX();
@@ -161,12 +156,12 @@ class Drivetrain {
   }
   
   // Tells whether the robot has reached the endpoint of the path, within the specified tolerance.
-  public boolean atEndpoint() {
+  public boolean atEndpoint(int pathIndex) {
     if (!gyroDisabled && !gyroFailure && !moduleFailure && !moduleDisabled) {
-      PathPlannerState endState = path.getEndState();
+      PathPlannerState endState = paths.get(pathIndex).getEndState();
       return Math.abs(getAngPos() - endState.holonomicRotation.getDegrees()) < pathAngTol 
-      && Math.abs(getXPos() - endState.poseMeters.getX()) < pathXTol 
-      && Math.abs(getYPos() - endState.poseMeters.getY()) < pathYTol;
+        && Math.abs(getXPos() - endState.poseMeters.getX()) < pathXTol 
+        && Math.abs(getYPos() - endState.poseMeters.getY()) < pathYTol;
     } else {
       return false;
     }
@@ -175,7 +170,7 @@ class Drivetrain {
   // Updates the position of the robot on the field. Should be called each period to remain accurate. Tends to noticably drift for periods of time >15 sec.
   public void updateOdometry() {
     if (!gyroDisabled && !gyroFailure) {
-      odometry.update(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getSMP(), frontRightModule.getSMP(), backRightModule.getSMP(), backLeftModule.getSMP()});
+      odometry.update(Rotation2d.fromDegrees(getAngPos()), getSMPs());
     }
   }
   
@@ -216,17 +211,16 @@ class Drivetrain {
   }
 
   // Resets the robot's odometry to the start point of the path loaded into loadPath()
-  public void resetOdometryToPathStart() {
+  public void resetOdometryToPathStart(int pathIndex) {
     if (!gyroDisabled && !gyroFailure) {
-      PathPlannerState startingState = path.getInitialState();
-      odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getSMP(), frontRightModule.getSMP(), backRightModule.getSMP(), backLeftModule.getSMP()}, startingState.poseMeters);
+      odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), getSMPs(), paths.get(pathIndex).getInitialState().poseMeters);
     }
   }
 
-  // Resets the robot's odometry pose to x=0, y=0, and heading=0.
-  public void resetOdometry() {
+  // Resets the robot's odometry pose to the desired value. Units: meters and degrees. 
+  public void resetOdometry(double xPos, double yPos, double angPos) {
     if (!gyroDisabled && !gyroFailure) {
-      odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), new SwerveModulePosition[] {frontLeftModule.getSMP(), frontRightModule.getSMP(), backRightModule.getSMP(), backLeftModule.getSMP()}, new Pose2d());
+      odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), getSMPs(), new Pose2d(xPos, yPos, Rotation2d.fromDegrees(angPos)));
     }
   }
   
@@ -284,54 +278,59 @@ class Drivetrain {
   public boolean getModuleDisabled() {
     return moduleDisabled;
   }
+
+  private SwerveModulePosition[] getSMPs() {
+    SwerveModulePosition[] SMPs = new SwerveModulePosition[modules.length];
+    for (int moduleIndex = 0; moduleIndex < modules.length; moduleIndex++) {
+      SMPs[moduleIndex] = modules[moduleIndex].getSMP();
+    }
+    return SMPs;
+  }
   
   // Updates moduleError and moduleOffline to reflect the current status of the swerve modules
   private void updateModuleStatus() {
-    moduleFailure = frontLeftModule.getModuleFailure() || frontRightModule.getModuleFailure() || backLeftModule.getModuleFailure() || backRightModule.getModuleFailure();
-    moduleDisabled = frontLeftModule.getModuleDisabled() || frontRightModule.getModuleDisabled() || backLeftModule.getModuleDisabled() || backRightModule.getModuleDisabled();
+    moduleDisabled = false;
+    moduleFailure = false;
+    for (int moduleIndex = 0; moduleIndex < modules.length; moduleIndex++) {
+      moduleFailure = moduleFailure || modules[moduleIndex].getModuleFailure();
+      moduleDisabled = moduleDisabled || modules[moduleIndex].getModuleDisabled();
+    }
   }
   
-  // Publishes all values to Smart Dashboard.
+  // Publishes all values to the dashboard. Should be called each period.
   public void updateDash() {
-    SmartDashboard.putNumber("xPos", getXPos());
-    SmartDashboard.putNumber("yPos", getYPos());
-    SmartDashboard.putNumber("angPos", getAngPos());
-    SmartDashboard.putNumber("xVel", xVel);
-    SmartDashboard.putNumber("yVel", yVel);
-    SmartDashboard.putNumber("angVel", angVel);
-    SmartDashboard.putNumber("pathXPos", pathXPos);
-    SmartDashboard.putNumber("pathYPos", pathYPos);
-    SmartDashboard.putNumber("pathAngPos", pathAngPos);
-    SmartDashboard.putNumber("FL angle", frontLeftModule.getAngle());
-    SmartDashboard.putNumber("FL pos", frontLeftModule.getPos());
-    SmartDashboard.putNumber("FL vel", frontLeftModule.getVel());
-    SmartDashboard.putNumber("FL encoder", frontLeftModule.getWheelEncoder());
-    SmartDashboard.putNumber("FR angle", frontRightModule.getAngle());
-    SmartDashboard.putNumber("FR pos", frontRightModule.getPos());
-    SmartDashboard.putNumber("FR vel", frontRightModule.getVel());
-    SmartDashboard.putNumber("FR encoder", frontRightModule.getWheelEncoder());
-    SmartDashboard.putNumber("BL angle", backLeftModule.getAngle());
-    SmartDashboard.putNumber("BL pos", backLeftModule.getPos());
-    SmartDashboard.putNumber("BL vel", backLeftModule.getVel());
-    SmartDashboard.putNumber("BL encoder", backLeftModule.getWheelEncoder());
-    SmartDashboard.putNumber("BR angle", backRightModule.getAngle());
-    SmartDashboard.putNumber("BR pos", backRightModule.getPos());
-    SmartDashboard.putNumber("BR vel", backRightModule.getVel());
-    SmartDashboard.putNumber("BR encoder", backRightModule.getWheelEncoder());
+    double[] modulePositions = new double[modules.length];
+    double[] moduleVelocities = new double[modules.length];
+    double[] moduleAngles = new double[modules.length];
+    double[] moduleWheelEncoders = new double[modules.length];
+    boolean[] modulesDisabled = new boolean[modules.length];
+    boolean[] moduleDriveMotorFailures = new boolean[modules.length];
+    boolean[] moduleTurnMotorFailures = new boolean[modules.length];
+    for (int moduleIndex = 0; moduleIndex < modules.length; moduleIndex++) {
+      modulePositions[moduleIndex] = modules[moduleIndex].getPos();
+      moduleVelocities[moduleIndex] = modules[moduleIndex].getVel();
+      moduleAngles[moduleIndex] = modules[moduleIndex].getAngle();
+      moduleWheelEncoders[moduleIndex] = modules[moduleIndex].getWheelEncoder();
+      modulesDisabled[moduleIndex] = modules[moduleIndex].getModuleDisabled();
+      moduleDriveMotorFailures[moduleIndex] = modules[moduleIndex].getDriveMotorFailure();
+      moduleTurnMotorFailures[moduleIndex] = modules[moduleIndex].getTurnMotorFailure();
+    }
+    SmartDashboard.putNumberArray("Module Positions", modulePositions);
+    SmartDashboard.putNumberArray("Module Velocities", moduleVelocities);
+    SmartDashboard.putNumberArray("Module Angles", moduleAngles);
+    SmartDashboard.putNumberArray("Module Wheel Encoders", moduleWheelEncoders);
+    SmartDashboard.putBooleanArray("Modules Disabled", modulesDisabled);
+    SmartDashboard.putBooleanArray("Module Turn Motor Failures", moduleTurnMotorFailures);
+    SmartDashboard.putBooleanArray("Module Drive Motor Failures", moduleDriveMotorFailures);
+    SmartDashboard.putNumberArray("Robot Position", new double[] {getXPos(), getYPos(), getAngPos()});
+    SmartDashboard.putNumberArray("Demanded Velocity", new double[] {xVel, yVel, angVel});
+    SmartDashboard.putNumberArray("Path Position", new double[] {pathXPos, pathYPos, pathAngPos});
     SmartDashboard.putBoolean("gyroFailure", gyroFailure);
     SmartDashboard.putBoolean("gyroDisabled", gyroDisabled);
-    SmartDashboard.putBoolean("moduleErrorFL", frontLeftModule.getModuleFailure());
-    SmartDashboard.putBoolean("moduleErrorFR", frontRightModule.getModuleFailure());
-    SmartDashboard.putBoolean("moduleErrorBL", backLeftModule.getModuleFailure());
-    SmartDashboard.putBoolean("moduleErrorBR", backRightModule.getModuleFailure());
-    SmartDashboard.putBoolean("moduleError", moduleFailure);
-    SmartDashboard.putBoolean("moduleOfflineFL", frontLeftModule.getModuleDisabled());
-    SmartDashboard.putBoolean("moduleOfflineFR", frontRightModule.getModuleDisabled());
-    SmartDashboard.putBoolean("moduleOfflineBL", backLeftModule.getModuleDisabled());
-    SmartDashboard.putBoolean("moduleOfflineBR", backRightModule.getModuleDisabled());
-    SmartDashboard.putBoolean("moduleOffline", moduleDisabled);
-    SmartDashboard.putNumber("positionError", getPathPosError());
-    SmartDashboard.putNumber("angleError", getPathAngleError());
-    SmartDashboard.putBoolean("atEndpoint", atEndpoint());
+    SmartDashboard.putBoolean("moduleFailure", moduleFailure);
+    SmartDashboard.putBoolean("moduleDisabled", moduleDisabled);
+    SmartDashboard.putNumber("Path Position Error", getPathPosError());
+    SmartDashboard.putNumber("Path Angle Error", getPathAngleError());
+    SmartDashboard.putBoolean("Path atEndpoint", atEndpoint(0));
   }
 }

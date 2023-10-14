@@ -13,16 +13,17 @@ public class Robot extends TimedRobot {
   private final SlewRateLimiter xAccLimiter = new SlewRateLimiter(Drivetrain.maxAcc/Drivetrain.maxVel);
   private final SlewRateLimiter yAccLimiter = new SlewRateLimiter(Drivetrain.maxAcc/Drivetrain.maxVel);
   private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(Drivetrain.maxAngularAcc/Drivetrain.maxAngularVel);
-
+  
   private final double minSpeedScaleFactor = 0.05; // The maximum speed of the robot when the throttle is at its minimum position, as a percentage of maxVel and maxAngularVel
 
   public void autonomousInit() {
-    swerve.resetPathController(true); // Must be called immediately prior to following a Path Planner path using followPath().
+    swerve.resetPathController(); // Must be called immediately prior to following a Path Planner path using followPath().
+    swerve.resetOdometryToPathStart(1);
   }
 
   public void autonomousPeriodic() {
-    if (!swerve.atEndpoint()) {
-      swerve.followPath(); // Follows the path that was previously loaded from Path Planner using loadPath().
+    if (!swerve.atEndpoint(1)) {
+      swerve.followPath(1); // Follows the path that was previously loaded from Path Planner using loadPath().
     } else {
       swerve.drive(0.0, 0.0, 0.0, false);
     }
@@ -43,14 +44,14 @@ public class Robot extends TimedRobot {
   }
 
   public void robotInit() {
-    swerve.loadPath("Test Path", true); // Loads the path. Can be called anytime prior to following the path. resetOdometry causes the robot's position to be reset to the starting point of the path.
+    swerve.loadPath("Test Path", 1); // Loads the path. Can be called anytime prior to following the path. resetOdometry causes the robot's position to be reset to the starting point of the path.
     
     // Helps prevent loop overruns when the robot is first enabled. These calls cause the robot to initialize code in other parts of the program so it does not need to be initialized during autonomousInit() or teleopInit(), saving computational resources.
-    swerve.resetPathController(true);
-    swerve.followPath();
-    swerve.atEndpoint();
+    swerve.resetPathController();
+    swerve.followPath(1);
+    swerve.atEndpoint(1);
     swerve.drive(0.1, 0.0, 0.0, false);
-    swerve.resetOdometry();
+    swerve.resetOdometry(0, 0, 0);
     swerve.updateDash();
   }
 
