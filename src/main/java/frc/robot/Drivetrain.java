@@ -52,9 +52,6 @@ class Drivetrain {
   private final double pathXTol = 0.01; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
   private final double pathYTol = 0.01; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
   private final double pathAngTol = 0.5; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: degrees
-  private double maxPathVel = 2.0; // Maximum robot velocity while following a path. Use the set function to modify this prior to following a path. Units: meters per second
-  private double maxPathAcc = 2.0; // Maximum robot acceleration while following a path. Use the set function to modify this prior to following a path. Units: meters per second^2
-  private boolean pathReversal = false; // Whether the path should be followed in forwards or reverse. Use the set function to modify this prior to following a path.
 
   // Path following
   private ArrayList<PathPlannerTrajectory> paths = new ArrayList<PathPlannerTrajectory>();
@@ -113,26 +110,18 @@ class Drivetrain {
       modules[moduleIndex].setSMS(moduleStates[moduleIndex]); // Sets the module angles and velocities.
     }
   }
-  
+
   // Loads the path. All paths should be loaded during robotInit() since this call is computationally expensive. Each path is stored and refered to by the provided index.
-  public void loadPath(String pathName, int pathIndex) {
+  // pathName: The name of the path in Path Planner
+  // pathIndex: Any number. You will use this number to refer to the path for other function calls.
+  // maxPathVel: Maximum robot velocity while following a path. Use the set function to modify this prior to following a path. Units: meters per second
+  // maxPathAcc: Maximum robot acceleration while following a path. Use the set function to modify this prior to following a path. Units: meters per second^2
+  // pathReversal: Whether the path should be followed in forwards or reverse. Use the set function to modify this prior to following a path.
+  public void loadPath(String pathName, int pathIndex, double maxPathVel, double maxPathAcc, boolean pathReversal) {
     paths.add(pathIndex, PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal));
   }
 
-  // The following 3 functions should be adjusted prior to calling loadPath(). These functions define the parameters of the path follower. They will default to reasonable pre-defined values if these functions are not called.
-  public void setMaxPathVel(double desiredMaxVel) { // Sets the maximum path following velocity.
-    maxPathVel = desiredMaxVel;
-  }
-
-  public void setPathReversal(boolean desiredReversal) { // Sets whether the path is followed in forwards or reverse.
-    pathReversal = desiredReversal;
-  }
-
-  public void setMaxPathAcc(double desiredMaxAcc) { // Sets the maximum path following acceleration.
-    maxPathAcc = desiredMaxAcc;
-  }
-
-  // Should be called once exactly 1 period prior to the start of calls to followPath() each time a path is followed. 
+  // Should be called once exactly 1 period prior to the start of calls to followPath() each time a new path is followed. 
   public void resetPathController() {
     xController.reset();
     yController.reset();
@@ -140,7 +129,7 @@ class Drivetrain {
     timer.restart();
   }
   
-  // Tracks the path. Should be called each period until the endpoint is reached.
+  // Tracks the path. Should be called each period. The path controller should be reset if followPath() is not called for a period or more.
   public void followPath(int pathIndex) {
     if (!gyroFailure && !gyroDisabled && !moduleFailure && !moduleDisabled) {
       updateOdometry();
