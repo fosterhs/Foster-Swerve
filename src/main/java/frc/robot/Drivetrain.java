@@ -32,7 +32,7 @@ class Drivetrain {
   private static final Translation2d frontRightModulePos = new Translation2d(0.225, -0.225); 
   private static final Translation2d backRightModulePos = new Translation2d(-0.225, -0.225);
   private static final Translation2d backLeftModulePos = new Translation2d(-0.225, 0.225);
-  private final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(frontLeftModulePos, frontRightModulePos, backRightModulePos, backLeftModulePos);
+  private static final SwerveDriveKinematics kinematics = new SwerveDriveKinematics(frontLeftModulePos, frontRightModulePos, backRightModulePos, backLeftModulePos);
 
   // Initializes each swerve module object.
   private final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false, 113.4); 
@@ -178,6 +178,16 @@ class Drivetrain {
   public double getAngPos() {
     if (!gyroFailure && !gyroDisabled) {
       return -gyro.getYaw();
+    } else {
+      gyroFailure = true;
+      return 0;
+    }
+  }
+  
+  // Returns the pitch of the robot in degrees. An elevated front is positive. An elevated rear is negative.
+  public double getPitch() {
+    if (gyro.isConnected() && !gyroDisabled) {
+      return gyro.getPitch();
     } else {
       gyroFailure = true;
       return 0;
