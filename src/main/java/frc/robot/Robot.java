@@ -22,6 +22,7 @@ public class Robot extends TimedRobot {
   }
 
   public void autonomousPeriodic() {
+    swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
     if (!swerve.atEndpoint(1, 0.01, 0.01, 0.5)) { // Checks to see if the endpoint of the path has been reached within the specified tolerance.
       swerve.followPath(1); // Follows the path that was previously loaded from Path Planner using loadPath().
     } else {
@@ -38,9 +39,9 @@ public class Robot extends TimedRobot {
     double xVel = xAccLimiter.calculate(MathUtil.applyDeadband(-stick.getY(),0.1))*Drivetrain.maxVel*speedScaleFactor;
     double yVel = yAccLimiter.calculate(MathUtil.applyDeadband(-stick.getX(),0.1))*Drivetrain.maxVel*speedScaleFactor;
     double angVel = angAccLimiter.calculate(MathUtil.applyDeadband(-stick.getZ(),0.1))*Drivetrain.maxAngularVel*speedScaleFactor;
-
-    swerve.drive(xVel, yVel, angVel, true); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel.
+    
     swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
+    swerve.drive(xVel, yVel, angVel, true); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel.
   }
 
   public void robotInit() {

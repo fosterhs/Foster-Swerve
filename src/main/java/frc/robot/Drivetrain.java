@@ -127,7 +127,6 @@ class Drivetrain {
   // Tracks the path. Should be called each period. The path controller should be reset if followPath() is not called for a period or more.
   public void followPath(int pathIndex) {
     if (!gyroFailure && !gyroDisabled && !moduleFailure && !moduleDisabled) {
-      updateOdometry();
       PathPlannerState currentGoal = (PathPlannerState) paths.get(pathIndex).sample(timer.get());
       ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
       drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, false); // Sets the robot to the correct velocities. 
