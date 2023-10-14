@@ -47,11 +47,6 @@ class Drivetrain {
   private final AHRS gyro = new AHRS();
   private boolean gyroFailure = false; // Indicates whether the gyro has lost connection at any point after a yaw-reset.
   private boolean gyroDisabled = false; // Indicates whether the gyro was disabled on startup, or by the driver by calling disableGyro()
-  
-  // Path following parameters
-  private final double pathXTol = 0.01; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
-  private final double pathYTol = 0.01; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: meters
-  private final double pathAngTol = 0.5; // Used to calcualte whether the robot is at the endpoint of a path. Hard code this value. Units: degrees
 
   // Path following
   private ArrayList<PathPlannerTrajectory> paths = new ArrayList<PathPlannerTrajectory>();
@@ -145,7 +140,8 @@ class Drivetrain {
   }
   
   // Tells whether the robot has reached the endpoint of the path, within the specified tolerance.
-  public boolean atEndpoint(int pathIndex) {
+  // pathIndex: Which path to check, pathXTol and pathYTol: the allowable difference in position in meters, pathAngTol: the allowable difference in angle in degrees
+  public boolean atEndpoint(int pathIndex, double pathXTol, double pathYTol, double pathAngTol) {
     if (!gyroDisabled && !gyroFailure && !moduleFailure && !moduleDisabled) {
       PathPlannerState endState = paths.get(pathIndex).getEndState();
       return Math.abs(getAngPos() - endState.holonomicRotation.getDegrees()) < pathAngTol 
@@ -330,6 +326,6 @@ class Drivetrain {
     SmartDashboard.putBoolean("moduleDisabled", moduleDisabled);
     SmartDashboard.putNumber("Path Position Error", getPathPosError());
     SmartDashboard.putNumber("Path Angle Error", getPathAngleError());
-    SmartDashboard.putBoolean("Path atEndpoint", atEndpoint(0));
+    SmartDashboard.putBoolean("Path atEndpoint", atEndpoint(1, 0.01, 0.01, 0.05));
   }
 }
