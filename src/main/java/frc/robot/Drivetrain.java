@@ -114,9 +114,9 @@ class Drivetrain {
   // Loads the path. All paths should be loaded during robotInit() since this call is computationally expensive. Each path is stored and refered to by the provided index.
   // pathName: The name of the path in Path Planner
   // pathIndex: Any number. You will use this number to refer to the path for other function calls.
-  // maxPathVel: Maximum robot velocity while following a path. Use the set function to modify this prior to following a path. Units: meters per second
-  // maxPathAcc: Maximum robot acceleration while following a path. Use the set function to modify this prior to following a path. Units: meters per second^2
-  // pathReversal: Whether the path should be followed in forwards or reverse. Use the set function to modify this prior to following a path.
+  // maxPathVel: Maximum robot velocity while following this path. Units: meters per second
+  // maxPathAcc: Maximum robot acceleration while following this path. Units: meters per second^2
+  // pathReversal: Whether the path should be followed in forwards or reverse. 
   public void loadPath(String pathName, int pathIndex, double maxPathVel, double maxPathAcc, boolean pathReversal) {
     paths.add(pathIndex, PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal));
   }
