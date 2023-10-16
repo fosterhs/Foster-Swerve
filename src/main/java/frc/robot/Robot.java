@@ -15,16 +15,20 @@ public class Robot extends TimedRobot {
   private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(Drivetrain.maxAngularAcc/Drivetrain.maxAngularVel);
   
   private final double minSpeedScaleFactor = 0.05; // The maximum speed of the robot when the throttle is at its minimum position, as a percentage of maxVel and maxAngularVel
+  
+  boolean endpoint1 = false;
+  boolean endpoint2 = false;
 
   public void autonomousInit() {
     swerve.resetPathController(); // Must be called immediately prior to following a Path Planner path using followPath().
-    swerve.resetOdometryToPathStart(1); // Resets the robot position to the begining of the path.
+    swerve.resetOdometryToPathStart(0); // Resets the robot position to the begining of the path.
   }
 
   public void autonomousPeriodic() {
     swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
-    if (!swerve.atEndpoint(1, 0.01, 0.01, 0.5)) { // Checks to see if the endpoint of the path has been reached within the specified tolerance.
-      swerve.followPath(1); // Follows the path that was previously loaded from Path Planner using loadPath().
+
+    if (!swerve.atEndpoint(0, 0.01, 0.01, 0.5)) { // Checks to see if the endpoint of the path has been reached within the specified tolerance.
+      swerve.followPath(0); // Follows the path that was previously loaded from Path Planner using loadPath().
     } else {
       swerve.drive(0.0, 0.0, 0.0, false); // Stops driving.
     }
@@ -45,12 +49,11 @@ public class Robot extends TimedRobot {
   }
 
   public void robotInit() {
-    swerve.loadPath("Test Path", 1, 2.0, 2.0, false); // Loads the path. All paths should be loaded in robotInit() because this call is computationally expensive.
-    
+    swerve.loadPath("Test", 0, 4.0, 2.0, false); // Loads the path. All paths should be loaded in robotInit() because this call is computationally expensive.
     // Helps prevent loop overruns when the robot is first enabled. These calls cause the robot to initialize code in other parts of the program so it does not need to be initialized during autonomousInit() or teleopInit(), saving computational resources.
     swerve.resetPathController();
-    swerve.followPath(1);
-    swerve.atEndpoint(1, 0.01, 0.01, 0.5);
+    swerve.followPath(0);
+    swerve.atEndpoint(0, 0.01, 0.01, 0.5);
     swerve.drive(0.1, 0.0, 0.0, false);
     swerve.resetOdometry(0, 0, 0);
     swerve.updateDash();

@@ -10,6 +10,7 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.AnalogEncoder;
 
 class SwerveModule {
+  private static final double correctionFactor = 0.95; // Factor that corrects for real-world deviations from the odometry calculated position of the robot. These can be caused by things like tread wear. Set this value to 1, then make the robot follow a 1 meter path in auto. Set this value to the distance the robot actually traveled.
   private static final double wheelCirc = 4.0*0.0254*Math.PI; // Circumference of the wheel. Unit: meters
   private static final double falconEncoderRes = 2048.0;
   private static final double turnGearRatio = 150.0/7.0;
@@ -94,7 +95,7 @@ class SwerveModule {
   // Returns the velocity of the wheel. Unit: meters per second
   public double getVel() {
     if (!driveMotorFailure && !moduleDisabled) {
-      return driveMotor.getSelectedSensorVelocity(0)*10.0*wheelCirc/(falconEncoderRes*driveGearRatio);
+      return driveMotor.getSelectedSensorVelocity(0)*10.0*wheelCirc*correctionFactor/(falconEncoderRes*driveGearRatio);
     } else {
       return 0;
     }
@@ -103,7 +104,7 @@ class SwerveModule {
   // Returns total distance the wheel has rotated. Unit: meters
   public double getPos() {
     if (!driveMotorFailure && !moduleDisabled) {
-      return driveMotor.getSelectedSensorPosition(0)*wheelCirc/(falconEncoderRes*driveGearRatio);
+      return driveMotor.getSelectedSensorPosition(0)*wheelCirc*correctionFactor/(falconEncoderRes*driveGearRatio);
     } else {
       return 0;
     }
@@ -132,7 +133,7 @@ class SwerveModule {
   // Sets the velocity of the module. Units: meters per second
   private void setVel(double vel) {
     if (!driveMotorFailure && !moduleDisabled) {
-      driveMotor.set(ControlMode.Velocity, vel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc));
+      driveMotor.set(ControlMode.Velocity, vel*falconEncoderRes*driveGearRatio/(10.0*wheelCirc*correctionFactor));
     } else {
       driveMotor.set(ControlMode.PercentOutput, 0);
     }

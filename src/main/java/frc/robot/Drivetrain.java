@@ -38,7 +38,7 @@ class Drivetrain {
   private final SwerveModule frontLeftModule = new SwerveModule(1, 2, 0, false, 113.4); 
   private final SwerveModule frontRightModule = new SwerveModule(3, 4, 1, true, 316.1);
   private final SwerveModule backRightModule = new SwerveModule(5, 6, 2, true, 74.2);
-  private final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false, 141.1);
+  private final SwerveModule backLeftModule = new SwerveModule(7, 8, 3, false, 170.3);
   private final SwerveModule[] modules = {frontLeftModule, frontRightModule, backRightModule, backLeftModule};
   private boolean moduleFailure = false; // Indicates whether there is at least 1 swerve module engine failure.
   private boolean moduleDisabled = false; // Indcates whether at least 1 module is disabled, either on startup or by the driver.
@@ -54,11 +54,11 @@ class Drivetrain {
   private final Timer timer = new Timer();
  
   // Autonomous swerve controller parameters. Hard code these values.
-  private final double kP_drive = 1.0; // Units: The number of meter/second of correction for every 1meter of error.
+  private final double kP_drive = 6.0; // Units: The number of meter/second of correction for every 1meter of error.
   private final double kI_drive = 0.0; // Units: The number of meter/second of correction for every 1meter*1second of error.
   private final double kD_drive = 0.0; // Units: The number of meter/second of correction for every 1meter/1second of error.
   private final double I_driveMax = 1.0; // The maxiumum number of meter/second of correction based on the I term.
-  private final double kP_turn = 4.0; // Units: The number of radian/second of correction for every 1rad of error.
+  private final double kP_turn = 8.0; // Units: The number of radian/second of correction for every 1rad of error.
   private final double kI_turn = 0.0; // Units: The number of radian/second of correction for every 1radian*1second of error.
   private final double kD_turn = 0.0; // Units: The number of radian/second of correction for every 1radian/1second of error.
   private final double I_turnMax = 1.0; // The maxiumum number of radian/second of correction based on the I term.
@@ -291,7 +291,7 @@ class Drivetrain {
     }
   }
   
-  // Publishes all values to the dashboard. Should be called each period.
+  // Publishes all values to the dashboard. Should be called each period. Uncomment individual lines to publish that information.
   public void updateDash() {
     double[] modulePositions = new double[modules.length];
     double[] moduleVelocities = new double[modules.length];
@@ -309,22 +309,22 @@ class Drivetrain {
       moduleDriveMotorFailures[moduleIndex] = modules[moduleIndex].getDriveMotorFailure();
       moduleTurnMotorFailures[moduleIndex] = modules[moduleIndex].getTurnMotorFailure();
     }
-    SmartDashboard.putNumberArray("Module Positions", modulePositions);
-    SmartDashboard.putNumberArray("Module Velocities", moduleVelocities);
-    SmartDashboard.putNumberArray("Module Angles", moduleAngles);
-    SmartDashboard.putNumberArray("Module Wheel Encoders", moduleWheelEncoders);
-    SmartDashboard.putBooleanArray("Modules Disabled", modulesDisabled);
-    SmartDashboard.putBooleanArray("Module Turn Motor Failures", moduleTurnMotorFailures);
-    SmartDashboard.putBooleanArray("Module Drive Motor Failures", moduleDriveMotorFailures);
-    SmartDashboard.putNumberArray("Robot Position", new double[] {getXPos(), getYPos(), getAngPos()});
-    SmartDashboard.putNumberArray("Demanded Velocity", new double[] {xVel, yVel, angVel});
-    SmartDashboard.putNumberArray("Path Position", new double[] {pathXPos, pathYPos, pathAngPos});
-    SmartDashboard.putBoolean("gyroFailure", gyroFailure);
-    SmartDashboard.putBoolean("gyroDisabled", gyroDisabled);
-    SmartDashboard.putBoolean("moduleFailure", moduleFailure);
-    SmartDashboard.putBoolean("moduleDisabled", moduleDisabled);
-    SmartDashboard.putNumber("Path Position Error", getPathPosError());
-    SmartDashboard.putNumber("Path Angle Error", getPathAngleError());
-    SmartDashboard.putBoolean("Path atEndpoint", atEndpoint(1, 0.01, 0.01, 0.05));
+    // SmartDashboard.putNumberArray("Module Positions", modulePositions);
+    // SmartDashboard.putNumberArray("Module Velocities", moduleVelocities);
+    // SmartDashboard.putNumberArray("Module Angles", moduleAngles);
+    // SmartDashboard.putNumberArray("Module Wheel Encoders", moduleWheelEncoders);
+    // SmartDashboard.putBooleanArray("Modules Disabled", modulesDisabled);
+    // SmartDashboard.putBooleanArray("Module Turn Motor Failures", moduleTurnMotorFailures);
+    // SmartDashboard.putBooleanArray("Module Drive Motor Failures", moduleDriveMotorFailures);
+    // SmartDashboard.putNumberArray("Robot Position", new double[] {getXPos(), getYPos(), getAngPos()});
+    // SmartDashboard.putNumberArray("Demanded Velocity", new double[] {xVel, yVel, angVel});
+    // SmartDashboard.putNumberArray("Path Position", new double[] {pathXPos, pathYPos, pathAngPos});
+    // SmartDashboard.putBoolean("gyroFailure", gyroFailure);
+    // SmartDashboard.putBoolean("gyroDisabled", gyroDisabled);
+    // SmartDashboard.putBoolean("moduleFailure", moduleFailure);
+    // SmartDashboard.putBoolean("moduleDisabled", moduleDisabled);
+    // SmartDashboard.putNumber("Path Position Error", getPathPosError());
+    // SmartDashboard.putNumber("Path Angle Error", getPathAngleError());
+    // SmartDashboard.putBoolean("Path atEndpoint", atEndpoint(1, 0.01, 0.01, 0.05));
   }
 }
