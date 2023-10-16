@@ -15,9 +15,6 @@ public class Robot extends TimedRobot {
   private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(Drivetrain.maxAngularAcc/Drivetrain.maxAngularVel);
   
   private final double minSpeedScaleFactor = 0.05; // The maximum speed of the robot when the throttle is at its minimum position, as a percentage of maxVel and maxAngularVel
-  
-  boolean endpoint1 = false;
-  boolean endpoint2 = false;
 
   public void autonomousInit() {
     swerve.resetPathController(); // Must be called immediately prior to following a Path Planner path using followPath().
