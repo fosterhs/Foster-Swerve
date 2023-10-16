@@ -46,7 +46,7 @@ public class Robot extends TimedRobot {
   }
 
   public void robotInit() {
-    swerve.loadPath("Test", 0, 4.0, 2.0, false); // Loads the path. All paths should be loaded in robotInit() because this call is computationally expensive.
+    swerve.loadPath("Test", 4.0, 2.0, false); // Loads the path. All paths should be loaded in robotInit() because this call is computationally expensive.
     // Helps prevent loop overruns when the robot is first enabled. These calls cause the robot to initialize code in other parts of the program so it does not need to be initialized during autonomousInit() or teleopInit(), saving computational resources.
     swerve.resetPathController();
     swerve.followPath(0);
