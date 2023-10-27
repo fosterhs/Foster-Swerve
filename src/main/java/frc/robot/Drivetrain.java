@@ -93,13 +93,14 @@ class Drivetrain {
   
   // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel. 
   // fieldRelative determines field-oriented control vs. robot-oriented control. field-relative control is automatically disabled in the case of a gyro failure.
-  public void drive(double _xVel, double _yVel, double _angVel, boolean fieldRelative) {
+  // Center of Rotation variables define where the robot will rotate from. 0,0 corresponds to rotations about the center of the robot. +x is towards the front. +y is to the left side.
+  public void drive(double _xVel, double _yVel, double _angVel, boolean fieldRelative, double centerOfRotationX, double centerOfRotationY) {
     xVel = _xVel;
     yVel = _yVel;
     angVel = _angVel*180.0/Math.PI;
     SwerveModuleState[] moduleStates = fieldRelative && !gyroFailure && !gyroDisabled
-     ? kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(_xVel, _yVel, _angVel, Rotation2d.fromDegrees(getAngPos())))
-     : kinematics.toSwerveModuleStates(new ChassisSpeeds(_xVel, _yVel, _angVel));
+     ? kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(_xVel, _yVel, _angVel, Rotation2d.fromDegrees(getAngPos())), new Translation2d(centerOfRotationX, centerOfRotationY))
+     : kinematics.toSwerveModuleStates(new ChassisSpeeds(_xVel, _yVel, _angVel), new Translation2d(centerOfRotationX, centerOfRotationY));
     SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, maxVel); // Makes sure the calculated velocities are attainable. If they are not, all modules velocities are scaled back.
     for (int moduleIndex = 0; moduleIndex < modules.length; moduleIndex++) {
       modules[moduleIndex].setSMS(moduleStates[moduleIndex]); // Sets the module angles and velocities.
@@ -128,12 +129,12 @@ class Drivetrain {
     if (!gyroFailure && !gyroDisabled && !moduleFailure && !moduleDisabled) {
       PathPlannerState currentGoal = (PathPlannerState) paths.get(pathIndex).sample(timer.get());
       ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
-      drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, false); // Sets the robot to the correct velocities. 
+      drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, false, 0.0, 0.0); // Sets the robot to the correct velocities. 
       pathXPos = currentGoal.poseMeters.getX();
       pathYPos = currentGoal.poseMeters.getY();
       pathAngPos = currentGoal.holonomicRotation.getDegrees();
     } else {
-      drive(0, 0, 0, false);
+      drive(0.0, 0.0, 0.0, false, 0.0, 0.0);
     }
   }
   
@@ -308,22 +309,22 @@ class Drivetrain {
       moduleDriveMotorFailures[moduleIndex] = modules[moduleIndex].getDriveMotorFailure();
       moduleTurnMotorFailures[moduleIndex] = modules[moduleIndex].getTurnMotorFailure();
     }
-    // SmartDashboard.putNumberArray("Module Positions", modulePositions);
-    // SmartDashboard.putNumberArray("Module Velocities", moduleVelocities);
-    // SmartDashboard.putNumberArray("Module Angles", moduleAngles);
-    // SmartDashboard.putNumberArray("Module Wheel Encoders", moduleWheelEncoders);
-    // SmartDashboard.putBooleanArray("Modules Disabled", modulesDisabled);
-    // SmartDashboard.putBooleanArray("Module Turn Motor Failures", moduleTurnMotorFailures);
-    // SmartDashboard.putBooleanArray("Module Drive Motor Failures", moduleDriveMotorFailures);
-    // SmartDashboard.putNumberArray("Robot Position", new double[] {getXPos(), getYPos(), getAngPos()});
-    // SmartDashboard.putNumberArray("Demanded Velocity", new double[] {xVel, yVel, angVel});
-    // SmartDashboard.putNumberArray("Path Position", new double[] {pathXPos, pathYPos, pathAngPos});
-    // SmartDashboard.putBoolean("gyroFailure", gyroFailure);
-    // SmartDashboard.putBoolean("gyroDisabled", gyroDisabled);
-    // SmartDashboard.putBoolean("moduleFailure", moduleFailure);
-    // SmartDashboard.putBoolean("moduleDisabled", moduleDisabled);
-    // SmartDashboard.putNumber("Path Position Error", getPathPosError());
-    // SmartDashboard.putNumber("Path Angle Error", getPathAngleError());
-    // SmartDashboard.putBoolean("Path atEndpoint", atEndpoint(1, 0.01, 0.01, 0.05));
+    SmartDashboard.putNumberArray("Module Positions", modulePositions);
+    SmartDashboard.putNumberArray("Module Velocities", moduleVelocities);
+    SmartDashboard.putNumberArray("Module Angles", moduleAngles);
+    SmartDashboard.putNumberArray("Module Wheel Encoders", moduleWheelEncoders);
+    SmartDashboard.putBooleanArray("Modules Disabled", modulesDisabled);
+    SmartDashboard.putBooleanArray("Module Turn Motor Failures", moduleTurnMotorFailures);
+    SmartDashboard.putBooleanArray("Module Drive Motor Failures", moduleDriveMotorFailures);
+    SmartDashboard.putNumberArray("Robot Position", new double[] {getXPos(), getYPos(), getAngPos()});
+    SmartDashboard.putNumberArray("Demanded Velocity", new double[] {xVel, yVel, angVel});
+    SmartDashboard.putNumberArray("Path Position", new double[] {pathXPos, pathYPos, pathAngPos});
+    SmartDashboard.putBoolean("gyroFailure", gyroFailure);
+    SmartDashboard.putBoolean("gyroDisabled", gyroDisabled);
+    SmartDashboard.putBoolean("moduleFailure", moduleFailure);
+    SmartDashboard.putBoolean("moduleDisabled", moduleDisabled);
+    SmartDashboard.putNumber("Path Position Error", getPathPosError());
+    SmartDashboard.putNumber("Path Angle Error", getPathAngleError());
+    SmartDashboard.putBoolean("Path atEndpoint", atEndpoint(0, 0.01, 0.01, 0.05));
   }
 }

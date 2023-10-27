@@ -27,7 +27,7 @@ public class Robot extends TimedRobot {
     if (!swerve.atEndpoint(0, 0.01, 0.01, 0.5)) { // Checks to see if the endpoint of the path has been reached within the specified tolerance.
       swerve.followPath(0); // Follows the path that was previously loaded from Path Planner using loadPath().
     } else {
-      swerve.drive(0.0, 0.0, 0.0, false); // Stops driving.
+      swerve.drive(0.0, 0.0, 0.0, false, 0.0, 0.0); // Stops driving.
     }
   }
 
@@ -42,7 +42,18 @@ public class Robot extends TimedRobot {
     double angVel = angAccLimiter.calculate(MathUtil.applyDeadband(-stick.getZ(),0.1))*Drivetrain.maxAngularVel*speedScaleFactor;
     
     swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
-    swerve.drive(xVel, yVel, angVel, true); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel.
+    // Allows the driver to rotate the robot about each corner. Defaults to a center of rotation at the center of the robot.
+    if (stick.getRawButton(7)) { // Front Left
+      swerve.drive(xVel, yVel, angVel, true, 0.29, 0.29);
+    } else if (stick.getRawButton(8)) { // Front Right
+      swerve.drive(xVel, yVel, angVel, true, 0.29, -0.29);
+    } else if (stick.getRawButton(9)) { // Back Left
+      swerve.drive(xVel, yVel, angVel, true, -0.29, 0.29);
+    } else if (stick.getRawButton(10)) { // Back Right
+      swerve.drive(xVel, yVel, angVel, true, -0.29, -0.29);
+    } else {
+      swerve.drive(xVel, yVel, angVel, true, 0.0, 0.0); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel.
+    }
   }
 
   public void robotInit() {
@@ -51,7 +62,7 @@ public class Robot extends TimedRobot {
     swerve.resetPathController();
     swerve.followPath(0);
     swerve.atEndpoint(0, 0.01, 0.01, 0.5);
-    swerve.drive(0.1, 0.0, 0.0, false);
+    swerve.drive(0.1, 0.0, 0.0, false, 0.0, 0.0);
     swerve.resetOdometry(0, 0, 0);
     swerve.updateDash();
   }
@@ -60,16 +71,16 @@ public class Robot extends TimedRobot {
     swerve.updateDash();
 
     // Allows the driver to toggle whether each of the swerve modules is on. Useful in the case of an engine failure in match. 
-    if (stick.getRawButtonPressed(7)) {
+    if (stick.getRawButtonPressed(5)) {
       swerve.toggleFL();
     }
-    if (stick.getRawButtonPressed(8)) {
+    if (stick.getRawButtonPressed(6)) {
       swerve.toggleFR();
     }
-    if (stick.getRawButtonPressed(9)) {
+    if (stick.getRawButtonPressed(3)) {
       swerve.toggleBL();
     }
-    if (stick.getRawButtonPressed(10)) {
+    if (stick.getRawButtonPressed(4)) {
       swerve.toggleBR();
     }
 
