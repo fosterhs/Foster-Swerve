@@ -9,18 +9,16 @@ import com.pathplanner.lib.PathPlannerTrajectory.PathPlannerState;
 import edu.wpi.first.math.controller.HolonomicDriveController;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.controller.ProfiledPIDController;
-import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
+import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
-import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 class Drivetrain {
@@ -49,14 +47,10 @@ class Drivetrain {
   private final AHRS gyro = new AHRS();
   private boolean gyroFailure = false; // Indicates whether the gyro has lost connection at any point after a yaw-reset.
   private boolean gyroDisabled = false; // Indicates whether the gyro was disabled on startup, or by the driver by calling disableGyro()
-  
-  // Vision
-  private long frame = 0;
-  private boolean visionFailure = false;
 
   // Path following
   private ArrayList<PathPlannerTrajectory> paths = new ArrayList<PathPlannerTrajectory>();
-  private final SwerveDrivePoseEstimator odometry = new SwerveDrivePoseEstimator(kinematics, new Rotation2d(), getSMPs(), new Pose2d());
+  private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), getSMPs());
   private final Timer timer = new Timer();
  
   // Autonomous swerve controller parameters. Hard code these values.
@@ -95,7 +89,6 @@ class Drivetrain {
     resetGyro(); // Sets the gyro angle to 0 based on the current heading of the robot.
     gyroDisabled = gyroFailure;
     updateModuleStatus(); // Checks whether any modules are offline or did not start up properly.
-    timer.start();
   }
   
   // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel. 
@@ -161,27 +154,12 @@ class Drivetrain {
   // Updates the position of the robot on the field. Should be called each period to remain accurate. Tends to noticably drift for periods of time >15 sec.
   public void updateOdometry() {
     if (!gyroDisabled && !gyroFailure) {
-      odometry.update(Rotation2d.fromDegrees(getGyroAngle()), getSMPs());
-    }
-
-    long newFrame = LimelightHelpers.getLimelightNTTableEntry("limelight", "hb").getInteger(0);
-    visionFailure = newFrame == frame;
-    if (!visionFailure) {
-      frame = newFrame;
-      if (LimelightHelpers.getTV("")) {
-        double[] botpose;
-        if (DriverStation.getAlliance().equals(Alliance.Blue)) {
-          botpose = LimelightHelpers.getBotPose_wpiBlue("");
-        } else {
-          botpose = LimelightHelpers.getBotPose_wpiRed("");
-        }
-        odometry.addVisionMeasurement(new Pose2d(botpose[0], botpose[1], Rotation2d.fromDegrees(botpose[5])), Timer.getFPGATimestamp()-botpose[6]/1000.0);
-      }
+      odometry.update(Rotation2d.fromDegrees(getAngPos()), getSMPs());
     }
   }
   
   // Returns the angular position of the robot in degrees. The angular position is referenced to the starting angle of the robot. CCW is positive. Will return 0 in the case of a gyro failure.
-  public double getGyroAngle() {
+  public double getAngPos() {
     if (!gyroFailure && !gyroDisabled) {
       return -gyro.getYaw();
     } else {
@@ -191,7 +169,7 @@ class Drivetrain {
   }
   
   // Returns the pitch of the robot in degrees. An elevated front is positive. An elevated rear is negative.
-  public double getGyroPitch() {
+  public double getPitch() {
     if (gyro.isConnected() && !gyroDisabled) {
       return gyro.getPitch();
     } else {
@@ -200,18 +178,14 @@ class Drivetrain {
     }
   }
   
-  public double getAngPos() {
-    return odometry.getEstimatedPosition().getRotation().getDegrees();
-  }
-
   // Returns the odometry calculated x position of the robot in meters.
   public double getXPos() {
-    return odometry.getEstimatedPosition().getX();
+    return odometry.getPoseMeters().getX();
   }
 
   // Returns the odometry calculated y position of the robot in meters.
   public double getYPos() {
-    return odometry.getEstimatedPosition().getY();
+    return odometry.getPoseMeters().getY();
   }
   
   // The distance between the robot's current position and the current trajectory position. Units: meters
