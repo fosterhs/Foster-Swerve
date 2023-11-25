@@ -6,6 +6,8 @@ import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends TimedRobot {
   private final Joystick stick = new Joystick(0); // Initializes the joystick.
@@ -17,15 +19,35 @@ public class Robot extends TimedRobot {
   private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(Drivetrain.maxAngularAcc/Drivetrain.maxAngularVel);
   
   private final double minSpeedScaleFactor = 0.05; // The maximum speed of the robot when the throttle is at its minimum position, as a percentage of maxVel and maxAngularVel
-  
+
+  private final SendableChooser<String> autoChooser = new SendableChooser<>();
+  private static final String auto1 = "Auto 1";
+  private static final String auto2 = "Auto 2";
+  private static final String auto3 = "Auto 3";
+  private String autoSelected;
+
   ProfiledPIDController angController = new ProfiledPIDController(0.14, 0.0, 0.0, new TrapezoidProfile.Constraints(1/4*Math.PI, 1/2*Math.PI));
   
-  public void autonomousInit() {}
+
+  public void autonomousInit() {
+    autoSelected = autoChooser.getSelected();
+  }
 
   public void autonomousPeriodic() {
-    swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
-    swerve.addVisionEstimate(); // Uses the limelight to estimate the position of the robot. Should only be called if limelight estimations are trustworthy (>1 april tag in sight, close to april tag...)
-    rotateToAprilTag();
+    switch (autoSelected) {
+      case auto1:
+        // Auto 1 code goes here.
+        swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
+        swerve.addVisionEstimate(); // Uses the limelight to estimate the position of the robot. Should only be called if limelight estimations are trustworthy (>1 april tag in sight, close to april tag...)    
+        rotateToAprilTag();
+        break;
+      case auto2:
+        // Auto 2 code goes here.
+        break;
+      case auto3: 
+        // Auto 3 code goes here.
+        break;
+    }
   }
 
   public void teleopInit() {}
@@ -54,6 +76,12 @@ public class Robot extends TimedRobot {
   }
 
   public void robotInit() {
+    // Allows the user to choose which auto to do
+    autoChooser.setDefaultOption(auto1, auto1);
+    autoChooser.addOption(auto2, auto2);
+    autoChooser.addOption(auto3, auto3);
+    SmartDashboard.putData("Autos", autoChooser);
+
     swerve.loadPath("Test", 4.0, 2.0, false); // Loads the path. All paths should be loaded in robotInit() because this call is computationally expensive.
     // Helps prevent loop overruns when the robot is first enabled. These calls cause the robot to initialize code in other parts of the program so it does not need to be initialized during autonomousInit() or teleopInit(), saving computational resources.
     swerve.resetPathController();
