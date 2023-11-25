@@ -6,19 +6,23 @@ import com.pathplanner.lib.PathConstraints;
 import com.pathplanner.lib.PathPlanner;
 import com.pathplanner.lib.PathPlannerTrajectory;
 import com.pathplanner.lib.PathPlannerTrajectory.PathPlannerState;
+import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.controller.HolonomicDriveController;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
+import edu.wpi.first.math.util.Units;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 class Drivetrain {
@@ -46,11 +50,18 @@ class Drivetrain {
   // Gyroscope variables
   private final AHRS gyro = new AHRS();
   private boolean gyroFailure = false; // Indicates whether the gyro has lost connection at any point after a yaw-reset.
-  private boolean gyroDisabled = false; // Indicates whether the gyro was disabled on startup, or by the driver by calling disableGyro()
+  private boolean gyroDisabled = false; // Indicates whether the gyro was disabled on startup, or by the driver by calling toggleGyro()
+
+  // Vision variables
+  private boolean visionDisconnected = false; // Indicates whether the Limelight is currently not connected by checking whether new frames are being uploaded to Network Tables
+  private boolean visionDisabled = false; // Indicates whether the Limelight has been disabled by the driver by calling toggleVision()
+  private long lastVisionFrame = 0; // The frame number of the last recieved frame from the Limelight.
+  private double lastVisionFrameTime = 0.0;
+  private final Alliance alliance = DriverStation.getAlliance();
 
   // Path following
   private ArrayList<PathPlannerTrajectory> paths = new ArrayList<PathPlannerTrajectory>();
-  private final SwerveDriveOdometry odometry = new SwerveDriveOdometry(kinematics, new Rotation2d(), getSMPs());
+  private final SwerveDrivePoseEstimator odometry = new SwerveDrivePoseEstimator(kinematics, new Rotation2d(), getSMPs(), new Pose2d(), VecBuilder.fill(0.05, 0.05, Units.degreesToRadians(0.1)), VecBuilder.fill(0.5, 0.5, Units.degreesToRadians(30.0)));
   private final Timer timer = new Timer();
  
   // Autonomous swerve controller parameters. Hard code these values.
@@ -99,8 +110,8 @@ class Drivetrain {
     yVel = _yVel;
     angVel = _angVel*180.0/Math.PI;
     SwerveModuleState[] moduleStates = fieldRelative && !gyroFailure && !gyroDisabled
-     ? kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(_xVel, _yVel, _angVel, Rotation2d.fromDegrees(getAngPos())), new Translation2d(centerOfRotationX, centerOfRotationY))
-     : kinematics.toSwerveModuleStates(new ChassisSpeeds(_xVel, _yVel, _angVel), new Translation2d(centerOfRotationX, centerOfRotationY));
+      ? kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(_xVel, _yVel, _angVel, Rotation2d.fromDegrees(visionDisabled ? getGyroAng() : getFusedAng())), new Translation2d(centerOfRotationX, centerOfRotationY))
+      : kinematics.toSwerveModuleStates(new ChassisSpeeds(_xVel, _yVel, _angVel), new Translation2d(centerOfRotationX, centerOfRotationY));
     SwerveDriveKinematics.desaturateWheelSpeeds(moduleStates, maxVel); // Makes sure the calculated velocities are attainable. If they are not, all modules velocities are scaled back.
     for (int moduleIndex = 0; moduleIndex < modules.length; moduleIndex++) {
       modules[moduleIndex].setSMS(moduleStates[moduleIndex]); // Sets the module angles and velocities.
@@ -113,7 +124,7 @@ class Drivetrain {
   // maxPathAcc: Maximum robot acceleration while following this path. Units: meters per second^2
   // pathReversal: Whether the path should be followed in forwards or reverse. 
   public void loadPath(String pathName, double maxPathVel, double maxPathAcc, boolean pathReversal) {
-    paths.add(PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal));
+    paths.add(PathPlannerTrajectory.transformTrajectoryForAlliance(PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal), alliance));
   }
 
   // Should be called once exactly 1 period prior to the start of calls to followPath() each time a new path is followed. 
@@ -128,7 +139,7 @@ class Drivetrain {
   public void followPath(int pathIndex) {
     if (!gyroFailure && !gyroDisabled && !moduleFailure && !moduleDisabled) {
       PathPlannerState currentGoal = (PathPlannerState) paths.get(pathIndex).sample(timer.get());
-      ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(getAngPos())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
+      ChassisSpeeds adjustedSpeeds = swerveController.calculate(new Pose2d(getXPos(), getYPos(), Rotation2d.fromDegrees(visionDisabled ? getGyroAng() : getFusedAng())), currentGoal, currentGoal.holonomicRotation); // Calculates the required robot velocities to accurately track the trajectory.
       drive(adjustedSpeeds.vxMetersPerSecond, adjustedSpeeds.vyMetersPerSecond, adjustedSpeeds.omegaRadiansPerSecond, false, 0.0, 0.0); // Sets the robot to the correct velocities. 
       pathXPos = currentGoal.poseMeters.getX();
       pathYPos = currentGoal.poseMeters.getY();
@@ -143,7 +154,7 @@ class Drivetrain {
   public boolean atEndpoint(int pathIndex, double pathXTol, double pathYTol, double pathAngTol) {
     if (!gyroDisabled && !gyroFailure && !moduleFailure && !moduleDisabled) {
       PathPlannerState endState = paths.get(pathIndex).getEndState();
-      return Math.abs(getAngPos() - endState.holonomicRotation.getDegrees()) < pathAngTol 
+      return Math.abs((visionDisabled ? getGyroAng() : getFusedAng()) - endState.holonomicRotation.getDegrees()) < pathAngTol 
         && Math.abs(getXPos() - endState.poseMeters.getX()) < pathXTol 
         && Math.abs(getYPos() - endState.poseMeters.getY()) < pathYTol;
     } else {
@@ -154,13 +165,53 @@ class Drivetrain {
   // Updates the position of the robot on the field. Should be called each period to remain accurate. Tends to noticably drift for periods of time >15 sec.
   public void updateOdometry() {
     if (!gyroDisabled && !gyroFailure) {
-      odometry.update(Rotation2d.fromDegrees(getAngPos()), getSMPs());
+      odometry.update(Rotation2d.fromDegrees(getGyroAng()), getSMPs());
+    }
+  }
+
+  // Incorporates vision information to determine the position of the robot on the field. Should be used only when vision information is deemed to be highly reliable (>1 april tag, close to april tag...)
+  public void addVisionEstimate() {
+    if (!getVisionDisconnected() && !visionDisabled && LimelightHelpers.getTV("")) { // Checks to see whether there is at least 1 vision target and the limelight is connected and enabled
+      double[] botpose;
+      if (alliance.equals(Alliance.Blue)) { // Transforms the vision position estimate to the appropriate coordinate system for the robot's alliance color
+        botpose = LimelightHelpers.getBotPose_wpiBlue("");
+      } else {
+        botpose = LimelightHelpers.getBotPose_wpiRed("");
+      }
+      odometry.addVisionMeasurement(new Pose2d(botpose[0], botpose[1], Rotation2d.fromDegrees(botpose[5])), Timer.getFPGATimestamp()-botpose[6]/1000.0);
     }
   }
   
+  // Tells the pose estimator how much to trust vision estimates. Larger values are less trustworthy. Units: xSD and ySD are in meters and angSD is in degrees. Default values can be found in pose estimate initialization.
+  public void updateVisionSD(double xSD, double ySD, double angSD) {
+    odometry.setVisionMeasurementStdDevs(VecBuilder.fill(xSD, ySD, Units.degreesToRadians(angSD)));
+  }
+
+  // Indicates whether the limelight is disconnected by determining whether a new frame has been recently uploaded to network tables.
+  public boolean getVisionDisconnected() {
+    long currentVisionFrame = LimelightHelpers.getLimelightNTTableEntry("limelight", "hb").getInteger(0); // Gets the Limelight frame number from network tables.
+    double currentVisionFrameTime = Timer.getFPGATimestamp();
+    if (currentVisionFrameTime - lastVisionFrameTime > 0.1) { // Checks to see whether at least 0.1s has elapsed since the last check.
+      visionDisconnected = currentVisionFrame == lastVisionFrame; // Compares the current frame number to the previous frame number to see whether a new frame was recieved.
+      lastVisionFrame = currentVisionFrame;
+      lastVisionFrameTime = currentVisionFrameTime;
+    }
+    return visionDisconnected;
+  }
+
+  // Indicates whether the limelight has been disabled by the driver
+  public boolean getVisionDisabled() {
+    return visionDisabled;
+  }
+
+  // Allows the driver to toggle whether vision information is used to determine the position of the robot
+  public void toggleVision() {
+    visionDisabled = !visionDisabled;
+  }
+  
   // Returns the angular position of the robot in degrees. The angular position is referenced to the starting angle of the robot. CCW is positive. Will return 0 in the case of a gyro failure.
-  public double getAngPos() {
-    if (!gyroFailure && !gyroDisabled) {
+  public double getGyroAng() {
+    if (gyro.isConnected() && !gyroFailure && !gyroDisabled) {
       return -gyro.getYaw();
     } else {
       gyroFailure = true;
@@ -169,8 +220,8 @@ class Drivetrain {
   }
   
   // Returns the pitch of the robot in degrees. An elevated front is positive. An elevated rear is negative.
-  public double getPitch() {
-    if (gyro.isConnected() && !gyroDisabled) {
+  public double getGyroPitch() {
+    if (gyro.isConnected() && !gyroFailure && !gyroDisabled) {
       return gyro.getPitch();
     } else {
       gyroFailure = true;
@@ -178,14 +229,19 @@ class Drivetrain {
     }
   }
   
-  // Returns the odometry calculated x position of the robot in meters.
+  // Returns the odometry calculated x position of the robot in meters. This is based on vision and gyro data combined.
   public double getXPos() {
-    return odometry.getPoseMeters().getX();
+    return odometry.getEstimatedPosition().getX();
   }
 
-  // Returns the odometry calculated y position of the robot in meters.
+  // Returns the odometry calculated y position of the robot in meters. This is based on vision and gyro data combined.
   public double getYPos() {
-    return odometry.getPoseMeters().getY();
+    return odometry.getEstimatedPosition().getY();
+  }
+
+  // Returns the odometry calcualted angle of the robot in degrees. This is based on vision and gyro data combined.
+  public double getFusedAng() {
+    return odometry.getEstimatedPosition().getRotation().getDegrees();
   }
   
   // The distance between the robot's current position and the current trajectory position. Units: meters
@@ -195,26 +251,26 @@ class Drivetrain {
 
   // The angular distance to the current trajectory point. Units: degrees
   public double getPathAngleError() {
-    double AngleError = getAngPos() - pathAngPos;
-    if (AngleError > 180.0) {
-      AngleError = AngleError - 360.0;
-    } else if (AngleError < -180.0) {
-      AngleError = AngleError + 360.0;
+    double angleError = (visionDisabled ? getGyroAng() : getFusedAng()) - pathAngPos;
+    if (angleError > 180.0) {
+      angleError = angleError - 360.0;
+    } else if (angleError < -180.0) {
+      angleError = angleError + 360.0;
     }
-    return AngleError;
+    return angleError;
   }
 
   // Resets the robot's odometry to the start point of the path loaded into loadPath()
   public void resetOdometryToPathStart(int pathIndex) {
     if (!gyroDisabled && !gyroFailure) {
-      odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), getSMPs(), paths.get(pathIndex).getInitialState().poseMeters);
+      odometry.resetPosition(Rotation2d.fromDegrees(getGyroAng()), getSMPs(), paths.get(pathIndex).getInitialState().poseMeters);
     }
   }
 
   // Resets the robot's odometry pose to the desired value. Units: meters and degrees. 
   public void resetOdometry(double xPos, double yPos, double angPos) {
     if (!gyroDisabled && !gyroFailure) {
-      odometry.resetPosition(Rotation2d.fromDegrees(getAngPos()), getSMPs(), new Pose2d(xPos, yPos, Rotation2d.fromDegrees(angPos)));
+      odometry.resetPosition(Rotation2d.fromDegrees(getGyroAng()), getSMPs(), new Pose2d(xPos, yPos, Rotation2d.fromDegrees(angPos)));
     }
   }
   
@@ -223,6 +279,7 @@ class Drivetrain {
     gyroFailure = !gyro.isConnected();
     if (!gyroFailure) {
       gyro.zeroYaw();
+      odometry.resetPosition(new Rotation2d(), getSMPs(), new Pose2d(getXPos(), getYPos(), new Rotation2d()));
     }
   }
 
@@ -316,7 +373,8 @@ class Drivetrain {
     SmartDashboard.putBooleanArray("Modules Disabled", modulesDisabled);
     SmartDashboard.putBooleanArray("Module Turn Motor Failures", moduleTurnMotorFailures);
     SmartDashboard.putBooleanArray("Module Drive Motor Failures", moduleDriveMotorFailures);
-    SmartDashboard.putNumberArray("Robot Position", new double[] {getXPos(), getYPos(), getAngPos()});
+    SmartDashboard.putNumberArray("Robot Position", new double[] {getXPos(), getYPos(), getFusedAng()});
+    SmartDashboard.putNumber("Gyro Angle", getGyroAng());
     SmartDashboard.putNumberArray("Demanded Velocity", new double[] {xVel, yVel, angVel});
     SmartDashboard.putNumberArray("Path Position", new double[] {pathXPos, pathYPos, pathAngPos});
     SmartDashboard.putBoolean("gyroFailure", gyroFailure);

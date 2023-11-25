@@ -1,7 +1,9 @@
 package frc.robot;
 
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 
@@ -15,20 +17,15 @@ public class Robot extends TimedRobot {
   private final SlewRateLimiter angAccLimiter = new SlewRateLimiter(Drivetrain.maxAngularAcc/Drivetrain.maxAngularVel);
   
   private final double minSpeedScaleFactor = 0.05; // The maximum speed of the robot when the throttle is at its minimum position, as a percentage of maxVel and maxAngularVel
-
-  public void autonomousInit() {
-    swerve.resetPathController(); // Must be called immediately prior to following a Path Planner path using followPath().
-    swerve.resetOdometryToPathStart(0); // Resets the robot position to the begining of the path.
-  }
+  
+  ProfiledPIDController angController = new ProfiledPIDController(0.14, 0.0, 0.0, new TrapezoidProfile.Constraints(1/4*Math.PI, 1/2*Math.PI));
+  
+  public void autonomousInit() {}
 
   public void autonomousPeriodic() {
     swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
-
-    if (!swerve.atEndpoint(0, 0.01, 0.01, 0.5)) { // Checks to see if the endpoint of the path has been reached within the specified tolerance.
-      swerve.followPath(0); // Follows the path that was previously loaded from Path Planner using loadPath().
-    } else {
-      swerve.drive(0.0, 0.0, 0.0, false, 0.0, 0.0); // Stops driving.
-    }
+    swerve.addVisionEstimate(); // Uses the limelight to estimate the position of the robot. Should only be called if limelight estimations are trustworthy (>1 april tag in sight, close to april tag...)
+    rotateToAprilTag();
   }
 
   public void teleopInit() {}
@@ -93,9 +90,25 @@ public class Robot extends TimedRobot {
     if (stick.getRawButtonPressed(12)) {
       swerve.toggleGyro();
     }
+
+    // Toggles whether vision information is used to drive the robot.
+    if (stick.getRawButtonPressed(2)); {
+      swerve.toggleVision();
+    }
   }
 
   public void disabledInit() {}
 
   public void disabledPeriodic() {}
+
+  public void rotateToAprilTag() {
+    double tx = LimelightHelpers.getTX("");
+    boolean tv = LimelightHelpers.getTV("");
+    double output = angController.calculate(tx);
+    if (!tv){
+      swerve.drive(0.0, 0.0, 0.0, true, 0.0, 0.0);
+    } else {
+      swerve.drive(0.0, 0.0, output, true, 0.0, 0.0);
+    }
+  }
 }
