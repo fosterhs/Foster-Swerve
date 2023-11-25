@@ -20,60 +20,12 @@ public class Robot extends TimedRobot {
   
   private final double minSpeedScaleFactor = 0.05; // The maximum speed of the robot when the throttle is at its minimum position, as a percentage of maxVel and maxAngularVel
 
+  // Auto Chooser Variables
   private final SendableChooser<String> autoChooser = new SendableChooser<>();
   private static final String auto1 = "Auto 1";
   private static final String auto2 = "Auto 2";
-  private static final String auto3 = "Auto 3";
+  private static final String auto3 = "Auto 3"; 
   private String autoSelected;
-
-  ProfiledPIDController angController = new ProfiledPIDController(0.14, 0.0, 0.0, new TrapezoidProfile.Constraints(1/4*Math.PI, 1/2*Math.PI));
-  
-
-  public void autonomousInit() {
-    autoSelected = autoChooser.getSelected();
-  }
-
-  public void autonomousPeriodic() {
-    switch (autoSelected) {
-      case auto1:
-        // Auto 1 code goes here.
-        swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
-        swerve.addVisionEstimate(); // Uses the limelight to estimate the position of the robot. Should only be called if limelight estimations are trustworthy (>1 april tag in sight, close to april tag...)    
-        rotateToAprilTag();
-        break;
-      case auto2:
-        // Auto 2 code goes here.
-        break;
-      case auto3: 
-        // Auto 3 code goes here.
-        break;
-    }
-  }
-
-  public void teleopInit() {}
-
-  public void teleopPeriodic() {
-    double speedScaleFactor = (-stick.getThrottle() + 1 + 2 * minSpeedScaleFactor) / (2 + 2 * minSpeedScaleFactor); // Creates a scale factor for the maximum speed of the robot based on the throttle position.
-
-    // Applies a deadband to controller inputs. Also limits the acceleration of controller inputs.
-    double xVel = xAccLimiter.calculate(MathUtil.applyDeadband(-stick.getY(),0.1))*Drivetrain.maxVel*speedScaleFactor;
-    double yVel = yAccLimiter.calculate(MathUtil.applyDeadband(-stick.getX(),0.1))*Drivetrain.maxVel*speedScaleFactor;
-    double angVel = angAccLimiter.calculate(MathUtil.applyDeadband(-stick.getZ(),0.1))*Drivetrain.maxAngularVel*speedScaleFactor;
-    
-    swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
-    // Allows the driver to rotate the robot about each corner. Defaults to a center of rotation at the center of the robot.
-    if (stick.getRawButton(7)) { // Front Left
-      swerve.drive(xVel, yVel, angVel, true, 0.29, 0.29);
-    } else if (stick.getRawButton(8)) { // Front Right
-      swerve.drive(xVel, yVel, angVel, true, 0.29, -0.29);
-    } else if (stick.getRawButton(9)) { // Back Left
-      swerve.drive(xVel, yVel, angVel, true, -0.29, 0.29);
-    } else if (stick.getRawButton(10)) { // Back Right
-      swerve.drive(xVel, yVel, angVel, true, -0.29, -0.29);
-    } else {
-      swerve.drive(xVel, yVel, angVel, true, 0.0, 0.0); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel.
-    }
-  }
 
   public void robotInit() {
     // Allows the user to choose which auto to do
@@ -88,12 +40,14 @@ public class Robot extends TimedRobot {
     swerve.followPath(0);
     swerve.atEndpoint(0, 0.01, 0.01, 0.5);
     swerve.drive(0.1, 0.0, 0.0, false, 0.0, 0.0);
+    swerve.addVisionEstimate(0.1, 0.1, 5.0);
     swerve.resetOdometry(0, 0, 0);
     swerve.updateDash();
   }
 
   public void robotPeriodic() {
     swerve.updateDash();
+    swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
 
     // Allows the driver to toggle whether each of the swerve modules is on. Useful in the case of an engine failure in match. 
     if (stick.getRawButtonPressed(5)) {
@@ -124,11 +78,58 @@ public class Robot extends TimedRobot {
       swerve.toggleVision();
     }
   }
+  
+  public void autonomousInit() {
+    autoSelected = autoChooser.getSelected();
+  }
+
+  public void autonomousPeriodic() {
+    switch (autoSelected) {
+      case auto1:
+        // Auto 1 code goes here.
+        swerve.addVisionEstimate(0.1, 0.1, 5.0); // Uses the limelight to estimate the position of the robot.  
+        rotateToAprilTag();
+        break;
+      case auto2:
+        // Auto 2 code goes here.
+        break;
+      case auto3: 
+        // Auto 3 code goes here.
+        break;
+    }
+  }
+
+  public void teleopInit() {}
+
+  public void teleopPeriodic() {
+    double speedScaleFactor = (-stick.getThrottle() + 1 + 2 * minSpeedScaleFactor) / (2 + 2 * minSpeedScaleFactor); // Creates a scale factor for the maximum speed of the robot based on the throttle position.
+
+    // Applies a deadband to controller inputs. Also limits the acceleration of controller inputs.
+    double xVel = xAccLimiter.calculate(MathUtil.applyDeadband(-stick.getY(),0.1))*Drivetrain.maxVel*speedScaleFactor;
+    double yVel = yAccLimiter.calculate(MathUtil.applyDeadband(-stick.getX(),0.1))*Drivetrain.maxVel*speedScaleFactor;
+    double angVel = angAccLimiter.calculate(MathUtil.applyDeadband(-stick.getZ(),0.1))*Drivetrain.maxAngularVel*speedScaleFactor;
+
+    // Allows the driver to rotate the robot about each corner. Defaults to a center of rotation at the center of the robot.
+    if (stick.getRawButton(7)) { // Front Left
+      swerve.drive(xVel, yVel, angVel, true, 0.29, 0.29);
+    } else if (stick.getRawButton(8)) { // Front Right
+      swerve.drive(xVel, yVel, angVel, true, 0.29, -0.29);
+    } else if (stick.getRawButton(9)) { // Back Left
+      swerve.drive(xVel, yVel, angVel, true, -0.29, 0.29);
+    } else if (stick.getRawButton(10)) { // Back Right
+      swerve.drive(xVel, yVel, angVel, true, -0.29, -0.29);
+    } else {
+      swerve.drive(xVel, yVel, angVel, true, 0.0, 0.0); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel.
+    }
+
+    swerve.addVisionEstimate(0.1, 0.1, 5.0); // Uses the limelight to estimate the position of the robot.
+  }
 
   public void disabledInit() {}
 
   public void disabledPeriodic() {}
 
+  ProfiledPIDController angController = new ProfiledPIDController(0.14, 0.0, 0.0, new TrapezoidProfile.Constraints(1/4*Math.PI, 1/2*Math.PI));
   public void rotateToAprilTag() {
     double tx = LimelightHelpers.getTX("");
     boolean tv = LimelightHelpers.getTV("");

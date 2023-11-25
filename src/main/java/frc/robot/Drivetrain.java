@@ -170,23 +170,14 @@ class Drivetrain {
   }
 
   // Incorporates vision information to determine the position of the robot on the field. Should be used only when vision information is deemed to be highly reliable (>1 april tag, close to april tag...)
-  public void addVisionEstimate() {
+  // xSD, ySD, and angSD tell the pose estimator how much to trust vision estimates. Larger values are less trustworthy. Units: xSD and ySD are in meters and angSD is in degrees. Default values can be found in pose estimate initialization.
+  public void addVisionEstimate(double xSD, double ySD, double angSD) {
     if (!getVisionDisconnected() && !visionDisabled && LimelightHelpers.getTV("")) { // Checks to see whether there is at least 1 vision target and the limelight is connected and enabled
-      double[] botpose;
-      if (alliance.equals(Alliance.Blue)) { // Transforms the vision position estimate to the appropriate coordinate system for the robot's alliance color
-        botpose = LimelightHelpers.getBotPose_wpiBlue("");
-      } else {
-        botpose = LimelightHelpers.getBotPose_wpiRed("");
-      }
-      odometry.addVisionMeasurement(new Pose2d(botpose[0], botpose[1], Rotation2d.fromDegrees(botpose[5])), Timer.getFPGATimestamp()-botpose[6]/1000.0);
+      double[] botpose = alliance.equals(Alliance.Blue) ? LimelightHelpers.getBotPose_wpiBlue("") : LimelightHelpers.getBotPose_wpiRed(""); // Transforms the vision position estimate to the appropriate coordinate system for the robot's alliance color
+      odometry.addVisionMeasurement(new Pose2d(botpose[0], botpose[1], Rotation2d.fromDegrees(botpose[5])), Timer.getFPGATimestamp()-botpose[6]/1000.0, VecBuilder.fill(xSD, ySD, Units.degreesToRadians(angSD)));
     }
   }
   
-  // Tells the pose estimator how much to trust vision estimates. Larger values are less trustworthy. Units: xSD and ySD are in meters and angSD is in degrees. Default values can be found in pose estimate initialization.
-  public void updateVisionSD(double xSD, double ySD, double angSD) {
-    odometry.setVisionMeasurementStdDevs(VecBuilder.fill(xSD, ySD, Units.degreesToRadians(angSD)));
-  }
-
   // Indicates whether the limelight is disconnected by determining whether a new frame has been recently uploaded to network tables.
   public boolean getVisionDisconnected() {
     long currentVisionFrame = LimelightHelpers.getLimelightNTTableEntry("limelight", "hb").getInteger(0); // Gets the Limelight frame number from network tables.
@@ -377,6 +368,8 @@ class Drivetrain {
     SmartDashboard.putNumber("Gyro Angle", getGyroAng());
     SmartDashboard.putNumberArray("Demanded Velocity", new double[] {xVel, yVel, angVel});
     SmartDashboard.putNumberArray("Path Position", new double[] {pathXPos, pathYPos, pathAngPos});
+    SmartDashboard.putBoolean("visionDisabled", visionDisabled);
+    SmartDashboard.putBoolean("visionDisconnected", getVisionDisconnected());
     SmartDashboard.putBoolean("gyroFailure", gyroFailure);
     SmartDashboard.putBoolean("gyroDisabled", gyroDisabled);
     SmartDashboard.putBoolean("moduleFailure", moduleFailure);
