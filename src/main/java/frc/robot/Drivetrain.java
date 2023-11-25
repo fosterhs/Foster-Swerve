@@ -61,7 +61,7 @@ class Drivetrain {
 
   // Path following
   private ArrayList<PathPlannerTrajectory> paths = new ArrayList<PathPlannerTrajectory>();
-  private final SwerveDrivePoseEstimator odometry = new SwerveDrivePoseEstimator(kinematics, new Rotation2d(), getSMPs(), new Pose2d(), VecBuilder.fill(0.05, 0.05, Units.degreesToRadians(0.1)), VecBuilder.fill(0.5, 0.5, Units.degreesToRadians(30.0)));
+  private final SwerveDrivePoseEstimator odometry = new SwerveDrivePoseEstimator(kinematics, new Rotation2d(), getSMPs(), new Pose2d(), VecBuilder.fill(0.02, 0.02, Units.degreesToRadians(0.5)), VecBuilder.fill(0.1, 0.1, Units.degreesToRadians(5.0)));
   private final Timer timer = new Timer();
  
   // Autonomous swerve controller parameters. Hard code these values.
