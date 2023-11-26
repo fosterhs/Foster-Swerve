@@ -34,7 +34,7 @@ public class Robot extends TimedRobot {
     autoChooser.addOption(auto3, auto3);
     SmartDashboard.putData("Autos", autoChooser);
 
-    swerve.loadPath("Test", 4.0, 2.0, false); // Loads the path. All paths should be loaded in robotInit() because this call is computationally expensive.
+    swerve.loadPath("Test", 1.0, 0.5, false); // Loads the path. All paths should be loaded in robotInit() because this call is computationally expensive.
     // Helps prevent loop overruns when the robot is first enabled. These calls cause the robot to initialize code in other parts of the program so it does not need to be initialized during autonomousInit() or teleopInit(), saving computational resources.
     swerve.resetPathController();
     swerve.followPath(0);
@@ -48,7 +48,7 @@ public class Robot extends TimedRobot {
   public void robotPeriodic() {
     swerve.updateDash();
     swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
-
+    swerve.addVisionEstimate(0.1, 0.1, 5.0); // Uses the limelight to estimate the position of the robot.  
     // Allows the driver to toggle whether each of the swerve modules is on. Useful in the case of an engine failure in match. 
     if (stick.getRawButtonPressed(5)) {
       swerve.toggleFL();
@@ -74,24 +74,40 @@ public class Robot extends TimedRobot {
     }
 
     // Toggles whether vision information is used to drive the robot.
-    if (stick.getRawButtonPressed(2)); {
+    if (stick.getRawButtonPressed(2)) {
       swerve.toggleVision();
     }
   }
   
   public void autonomousInit() {
     autoSelected = autoChooser.getSelected();
+    switch (autoSelected) {
+      case auto1:
+        // AutoInit 1 code goes here. 
+        break;
+      case auto2:
+        // AutoInit 2 code goes here.
+        swerve.resetPathController(); // Must be called immediately prior to following a Path Planner path using followPath().
+        break;
+      case auto3: 
+        // AutoInit 3 code goes here.
+        break;
+    }
   }
 
   public void autonomousPeriodic() {
     switch (autoSelected) {
       case auto1:
-        // Auto 1 code goes here.
-        swerve.addVisionEstimate(0.1, 0.1, 5.0); // Uses the limelight to estimate the position of the robot.  
+        // Auto 1 code goes here. 
         rotateToAprilTag();
         break;
       case auto2:
         // Auto 2 code goes here.
+        if (!swerve.atEndpoint(0, 0.01, 0.01, 0.5)) { // Checks to see if the endpoint of the path has been reached within the specified tolerance.
+          swerve.followPath(0); // Follows the path that was previously loaded from Path Planner using loadPath().
+        } else {
+          swerve.drive(0.0, 0.0, 0.0, false, 0.0, 0.0); // Stops driving.
+        }
         break;
       case auto3: 
         // Auto 3 code goes here.
@@ -121,8 +137,6 @@ public class Robot extends TimedRobot {
     } else {
       swerve.drive(xVel, yVel, angVel, true, 0.0, 0.0); // Drives the robot at a certain speed and rotation rate. Units: meters per second for xVel and yVel, radians per second for angVel.
     }
-
-    swerve.addVisionEstimate(0.1, 0.1, 5.0); // Uses the limelight to estimate the position of the robot.
   }
 
   public void disabledInit() {}

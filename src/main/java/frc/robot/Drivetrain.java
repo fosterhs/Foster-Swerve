@@ -65,11 +65,11 @@ class Drivetrain {
   private final Timer timer = new Timer();
  
   // Autonomous swerve controller parameters. Hard code these values.
-  private final double kP_drive = 6.0; // Units: The number of meter/second of correction for every 1meter of error.
+  private final double kP_drive = 3.0; // Units: The number of meter/second of correction for every 1meter of error.
   private final double kI_drive = 0.0; // Units: The number of meter/second of correction for every 1meter*1second of error.
   private final double kD_drive = 0.0; // Units: The number of meter/second of correction for every 1meter/1second of error.
   private final double I_driveMax = 1.0; // The maxiumum number of meter/second of correction based on the I term.
-  private final double kP_turn = 8.0; // Units: The number of radian/second of correction for every 1rad of error.
+  private final double kP_turn = 4.0; // Units: The number of radian/second of correction for every 1rad of error.
   private final double kI_turn = 0.0; // Units: The number of radian/second of correction for every 1radian*1second of error.
   private final double kD_turn = 0.0; // Units: The number of radian/second of correction for every 1radian/1second of error.
   private final double I_turnMax = 1.0; // The maxiumum number of radian/second of correction based on the I term.
@@ -131,7 +131,7 @@ class Drivetrain {
   public void resetPathController() {
     xController.reset();
     yController.reset();
-    turnController.reset(0, 0);
+    turnController.reset(visionDisabled ? getGyroAng() : getFusedAng(), 0.0);
     timer.restart();
   }
   
@@ -182,7 +182,7 @@ class Drivetrain {
   public boolean getVisionDisconnected() {
     long currentVisionFrame = LimelightHelpers.getLimelightNTTableEntry("limelight", "hb").getInteger(0); // Gets the Limelight frame number from network tables.
     double currentVisionFrameTime = Timer.getFPGATimestamp();
-    if (currentVisionFrameTime - lastVisionFrameTime > 0.1) { // Checks to see whether at least 0.1s has elapsed since the last check.
+    if (currentVisionFrameTime - lastVisionFrameTime > 0.5) { // Checks to see whether at least 0.5s has elapsed since the last check.
       visionDisconnected = currentVisionFrame == lastVisionFrame; // Compares the current frame number to the previous frame number to see whether a new frame was recieved.
       lastVisionFrame = currentVisionFrame;
       lastVisionFrameTime = currentVisionFrameTime;
