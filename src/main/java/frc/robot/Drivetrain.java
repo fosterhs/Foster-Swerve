@@ -1,6 +1,7 @@
 package frc.robot;
 
 import java.util.ArrayList;
+
 import com.kauailabs.navx.frc.AHRS;
 import com.pathplanner.lib.PathConstraints;
 import com.pathplanner.lib.PathPlanner;
@@ -21,8 +22,8 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 class Drivetrain {
@@ -107,7 +108,7 @@ class Drivetrain {
   // Center of Rotation variables define where the robot will rotate from. 0,0 corresponds to rotations about the center of the robot. +x is towards the front. +y is to the left side.
   public void drive(double _xVel, double _yVel, double _angVel, boolean fieldRelative, double centerOfRotationX, double centerOfRotationY) {
     xVel = _xVel;
-    yVel = _yVel;
+    yVel = alliance.equals(Alliance.Blue) ? _yVel : -_yVel;
     angVel = _angVel*180.0/Math.PI;
     SwerveModuleState[] moduleStates = fieldRelative && !gyroFailure && !gyroDisabled
       ? kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(_xVel, _yVel, _angVel, Rotation2d.fromDegrees(visionDisabled ? getGyroAng() : getFusedAng())), new Translation2d(centerOfRotationX, centerOfRotationY))
@@ -208,6 +209,16 @@ class Drivetrain {
       gyroFailure = true;
       return 0;
     }
+  }
+
+  // Returns true if the robot is on the red alliance.
+  public boolean isRedAlliance() {
+    return alliance.equals(Alliance.Red);
+  }
+
+  // Returns true if the robot is on the blue alliance.
+  public boolean isBlueAlliance() {
+    return alliance.equals(Alliance.Blue);
   }
   
   // Returns the pitch of the robot in degrees. An elevated front is positive. An elevated rear is negative.

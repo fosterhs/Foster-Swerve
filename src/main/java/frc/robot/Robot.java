@@ -25,6 +25,7 @@ public class Robot extends TimedRobot {
   private static final String auto1 = "Auto 1";
   private static final String auto2 = "Auto 2";
   private static final String auto3 = "Auto 3"; 
+  private static final String auto4 = "Auto 4"; 
   private String autoSelected;
 
   public void robotInit() {
@@ -32,6 +33,7 @@ public class Robot extends TimedRobot {
     autoChooser.setDefaultOption(auto1, auto1);
     autoChooser.addOption(auto2, auto2);
     autoChooser.addOption(auto3, auto3);
+    autoChooser.addOption(auto4, auto4);
     SmartDashboard.putData("Autos", autoChooser);
 
     swerve.loadPath("Test", 1.0, 0.5, false); // Loads the path. All paths should be loaded in robotInit() because this call is computationally expensive.
@@ -46,9 +48,14 @@ public class Robot extends TimedRobot {
   }
 
   public void robotPeriodic() {
+    boolean isSquare = isSquare();
+    SmartDashboard.putBoolean("isSquare", isSquare);
+    double[] distanceToTargetArray = LimelightHelpers.getLimelightNTTableEntry("limelight", "botpose_targetspace").getDoubleArray(new double[6]);
+    double distanceToTarget = -distanceToTargetArray[2];
+    SmartDashboard.putNumber("Distance to Tag", distanceToTarget);
     swerve.updateDash();
     swerve.updateOdometry(); // Keeps track of the position of the robot on the field. Must be called each period.
-    swerve.addVisionEstimate(0.1, 0.1, 5.0); // Uses the limelight to estimate the position of the robot.  
+    addVisionEstimate(); // Uses the limelight to estimate the position of the robot.  
     // Allows the driver to toggle whether each of the swerve modules is on. Useful in the case of an engine failure in match. 
     if (stick.getRawButtonPressed(5)) {
       swerve.toggleFL();
@@ -92,6 +99,9 @@ public class Robot extends TimedRobot {
       case auto3: 
         // AutoInit 3 code goes here.
         break;
+      case auto4:
+        // AutoInit 4 code goes here.
+        break;
     }
   }
 
@@ -111,6 +121,15 @@ public class Robot extends TimedRobot {
         break;
       case auto3: 
         // Auto 3 code goes here.
+        if (isSquare()) {
+          strafeToAprilTag();
+        } else {
+          swerve.drive(0.0, 0.0, 0.0, false, 0.0, 0.0);   
+        }
+        break;
+      case auto4: 
+        // Auto 4 code goes here.
+        robotToAprilTag(1);
         break;
     }
   }
@@ -143,7 +162,12 @@ public class Robot extends TimedRobot {
 
   public void disabledPeriodic() {}
 
-  ProfiledPIDController angController = new ProfiledPIDController(0.14, 0.0, 0.0, new TrapezoidProfile.Constraints(1/4*Math.PI, 1/2*Math.PI));
+  // Standard deviation for tag count, distance; odometry is more accurate for angle, vision more accurate for x & y
+  public void addVisionEstimate() {
+    swerve.addVisionEstimate(0.02, 0.02, 5.0);
+  }
+
+  ProfiledPIDController angController = new ProfiledPIDController(0.14, 0.0, 0.004, new TrapezoidProfile.Constraints(1/4*Math.PI, 1/2*Math.PI));
   public void rotateToAprilTag() {
     double tx = LimelightHelpers.getTX("");
     boolean tv = LimelightHelpers.getTV("");
@@ -152,6 +176,42 @@ public class Robot extends TimedRobot {
       swerve.drive(0.0, 0.0, 0.0, true, 0.0, 0.0);
     } else {
       swerve.drive(0.0, 0.0, output, true, 0.0, 0.0);
+    }
+  }
+
+  ProfiledPIDController strafeController = new ProfiledPIDController(0.08, 0.0, 0.0, new TrapezoidProfile.Constraints( 0.8, 0.4));
+  public void strafeToAprilTag() {
+    double tx = LimelightHelpers.getTX("");
+    boolean tv = LimelightHelpers.getTV("");
+    double output = strafeController.calculate(tx);
+        if (swerve.isRedAlliance()) {
+      output = -output;
+    }
+    if (tv) {
+      swerve.drive(0.0, output, 0.0, true, 0.0, 0.0);
+    } else {
+      swerve.drive(0.0, 0.0, 0.0, true, 0.0, 0.0);
+    }
+  }
+  ProfiledPIDController distanceController = new ProfiledPIDController(0.08, 0.0, 0.0, new TrapezoidProfile.Constraints( 0.8, 0.4));
+  public void robotToAprilTag(double targetDistance) {
+    double[] distanceToTargetArray = LimelightHelpers.getLimelightNTTableEntry("limelight", "botpose_targetspace").getDoubleArray(new double[6]);
+    double distanceToTarget = -distanceToTargetArray[2];
+    boolean tv = LimelightHelpers.getTV("");
+    double output = distanceController.calculate(distanceToTarget);
+    if (tv) {
+      swerve.drive(output, 0.0, 0.0, true, 0.0, 0.0);
+    } else {
+      swerve.drive(0.0, 0.0, 0.0, true, 0.0, 0.0);
+    }
+  }
+  public boolean isSquare() {
+    double thor = LimelightHelpers.getLimelightNTTableEntry("limelight", "thor").getDouble(0);
+    double tvert = LimelightHelpers.getLimelightNTTableEntry("limelight", "tvert").getDouble(0);
+    if (Math.abs(tvert/thor-1.0) < 0.2) {
+      return true;
+    } else {
+      return false;
     }
   }
 }
