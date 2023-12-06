@@ -58,7 +58,6 @@ class Drivetrain {
   private boolean visionDisabled = false; // Indicates whether the Limelight has been disabled by the driver by calling toggleVision()
   private long lastVisionFrame = 0; // The frame number of the last recieved frame from the Limelight.
   private double lastVisionFrameTime = 0.0;
-  private final Alliance alliance = DriverStation.getAlliance();
 
   // Path following
   private ArrayList<PathPlannerTrajectory> paths = new ArrayList<PathPlannerTrajectory>();
@@ -108,7 +107,7 @@ class Drivetrain {
   // Center of Rotation variables define where the robot will rotate from. 0,0 corresponds to rotations about the center of the robot. +x is towards the front. +y is to the left side.
   public void drive(double _xVel, double _yVel, double _angVel, boolean fieldRelative, double centerOfRotationX, double centerOfRotationY) {
     xVel = _xVel;
-    yVel = alliance.equals(Alliance.Blue) ? _yVel : -_yVel;
+    yVel = _yVel;
     angVel = _angVel*180.0/Math.PI;
     SwerveModuleState[] moduleStates = fieldRelative && !gyroFailure && !gyroDisabled
       ? kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(_xVel, _yVel, _angVel, Rotation2d.fromDegrees(visionDisabled ? getGyroAng() : getFusedAng())), new Translation2d(centerOfRotationX, centerOfRotationY))
@@ -125,7 +124,7 @@ class Drivetrain {
   // maxPathAcc: Maximum robot acceleration while following this path. Units: meters per second^2
   // pathReversal: Whether the path should be followed in forwards or reverse. 
   public void loadPath(String pathName, double maxPathVel, double maxPathAcc, boolean pathReversal) {
-    paths.add(PathPlannerTrajectory.transformTrajectoryForAlliance(PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal), alliance));
+    paths.add(PathPlannerTrajectory.transformTrajectoryForAlliance(PathPlanner.loadPath(pathName, new PathConstraints(maxPathVel, maxPathAcc), pathReversal), DriverStation.getAlliance()));
   }
 
   // Should be called once exactly 1 period prior to the start of calls to followPath() each time a new path is followed. 
@@ -174,7 +173,7 @@ class Drivetrain {
   // xSD, ySD, and angSD tell the pose estimator how much to trust vision estimates. Larger values are less trustworthy. Units: xSD and ySD are in meters and angSD is in degrees. Default values can be found in pose estimate initialization.
   public void addVisionEstimate(double xSD, double ySD, double angSD) {
     if (!getVisionDisconnected() && !visionDisabled && LimelightHelpers.getTV("")) { // Checks to see whether there is at least 1 vision target and the limelight is connected and enabled
-      double[] botpose = alliance.equals(Alliance.Blue) ? LimelightHelpers.getBotPose_wpiBlue("") : LimelightHelpers.getBotPose_wpiRed(""); // Transforms the vision position estimate to the appropriate coordinate system for the robot's alliance color
+      double[] botpose = isBlueAlliance() ? LimelightHelpers.getBotPose_wpiBlue("") : LimelightHelpers.getBotPose_wpiRed(""); // Transforms the vision position estimate to the appropriate coordinate system for the robot's alliance color
       odometry.addVisionMeasurement(new Pose2d(botpose[0], botpose[1], Rotation2d.fromDegrees(botpose[5])), Timer.getFPGATimestamp()-botpose[6]/1000.0, VecBuilder.fill(xSD, ySD, Units.degreesToRadians(angSD)));
     }
   }
@@ -213,13 +212,14 @@ class Drivetrain {
 
   // Returns true if the robot is on the red alliance.
   public boolean isRedAlliance() {
-    return alliance.equals(Alliance.Red);
+    return DriverStation.getAlliance().equals(Alliance.Red);
   }
 
   // Returns true if the robot is on the blue alliance.
   public boolean isBlueAlliance() {
-    return alliance.equals(Alliance.Blue);
+    return DriverStation.getAlliance().equals(Alliance.Blue);
   }
+
   
   // Returns the pitch of the robot in degrees. An elevated front is positive. An elevated rear is negative.
   public double getGyroPitch() {

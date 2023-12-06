@@ -159,7 +159,7 @@ public class Robot extends TimedRobot {
   }
 
   public void disabledInit() {}
-
+  
   public void disabledPeriodic() {}
 
   // Standard deviation for tag count, distance; odometry is more accurate for angle, vision more accurate for x & y
@@ -179,21 +179,20 @@ public class Robot extends TimedRobot {
     }
   }
 
-  ProfiledPIDController strafeController = new ProfiledPIDController(0.08, 0.0, 0.0, new TrapezoidProfile.Constraints( 0.8, 0.4));
+  ProfiledPIDController strafeController = new ProfiledPIDController(0.08, 0.0, 0.0, new TrapezoidProfile.Constraints(0.8, 0.4));
   public void strafeToAprilTag() {
     double tx = LimelightHelpers.getTX("");
     boolean tv = LimelightHelpers.getTV("");
-    double output = strafeController.calculate(tx);
-        if (swerve.isRedAlliance()) {
-      output = -output;
-    }
+    double output = strafeController.calculate(-tx);
+
     if (tv) {
       swerve.drive(0.0, output, 0.0, true, 0.0, 0.0);
     } else {
       swerve.drive(0.0, 0.0, 0.0, true, 0.0, 0.0);
     }
   }
-  ProfiledPIDController distanceController = new ProfiledPIDController(0.08, 0.0, 0.0, new TrapezoidProfile.Constraints( 0.8, 0.4));
+
+  ProfiledPIDController distanceController = new ProfiledPIDController(0.08, 0.0, 0.0, new TrapezoidProfile.Constraints(0.8, 0.4));
   public void robotToAprilTag(double targetDistance) {
     double[] distanceToTargetArray = LimelightHelpers.getLimelightNTTableEntry("limelight", "botpose_targetspace").getDoubleArray(new double[6]);
     double distanceToTarget = -distanceToTargetArray[2];
@@ -205,6 +204,7 @@ public class Robot extends TimedRobot {
       swerve.drive(0.0, 0.0, 0.0, true, 0.0, 0.0);
     }
   }
+  
   public boolean isSquare() {
     double thor = LimelightHelpers.getLimelightNTTableEntry("limelight", "thor").getDouble(0);
     double tvert = LimelightHelpers.getLimelightNTTableEntry("limelight", "tvert").getDouble(0);
